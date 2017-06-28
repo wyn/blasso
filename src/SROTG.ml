@@ -1,1 +1,1 @@
-(* SROTG routine *)
+(* SROTG routine - BLAS level one *)
