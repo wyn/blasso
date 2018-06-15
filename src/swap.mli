@@ -1,8 +1,1 @@
-type n = int
-  (* | N of int *)
-type incx = int
-  (* | IncX of int *)
-type incy = int
-  (* | IncY of int *)
-
-val dswap : n -> float array -> incx -> float array -> incy -> unit
+val dswap : n:int -> dx:float array -> incx:int -> dy:float array -> incy:int -> unit

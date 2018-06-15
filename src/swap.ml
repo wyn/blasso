@@ -1,17 +1,5 @@
-type n = int
-  (* | N of int *)
-type incx = int
-  (* | IncX of int *)
-type incy = int
-  (* | IncY of int *)
 
-let dswap
-      (n : n)
-      (dx : float array)
-      (incx : incx)
-      (dy : float array)
-      (incy : incy)
-  =  
+let dswap ~n ~dx ~incx ~dy ~incy = 
   if n > 0 then
     let dtemp = ref 0. in
     let ix = ref (if incx < 0 then (1-n)*incx else 0) in
