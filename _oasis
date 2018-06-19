@@ -8,6 +8,6 @@ Plugins:     DevFiles (0.4)
 Library blassolib
   Path:       src
   BuildTools: ocamlbuild
-  Modules:    Swap
+  Modules:    Blas
 # Test "TestSROTG"
 #   Command: asdasdasd
