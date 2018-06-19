@@ -14,3 +14,18 @@ let dswap ~n ~dx ~incx ~dy ~incy =
       iy := !iy + incy;
       Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
     done
+
+
+let dscal ~n ~da ~dx ~incx =
+  if n <= 0 then
+    ();
+
+  if incx <= 0 then
+    ();
+
+  let ix = ref 0 in
+  for i = 0 to n-1 do
+    dx.(!ix) <- da *. dx.(!ix);
+    ix := !ix + incx;
+  done
+      
