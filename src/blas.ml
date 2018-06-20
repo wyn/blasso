@@ -17,15 +17,10 @@ let dswap ~n ~dx ~incx ~dy ~incy =
 
 
 let dscal ~n ~da ~dx ~incx =
-  if n <= 0 then
-    ();
-
-  if incx <= 0 then
-    ();
-
-  let ix = ref 0 in
-  for i = 0 to n-1 do
-    dx.(!ix) <- da *. dx.(!ix);
-    ix := !ix + incx;
+  if n > 0 && incx > 0 then
+    let ix = ref 0 in
+    for i = 0 to n-1 do
+      dx.(!ix) <- da *. dx.(!ix);
+      ix := !ix + incx;
   done
-      
+
