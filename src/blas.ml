@@ -15,6 +15,15 @@ let dswap ~n ~xs ~incx ~ys ~incy =
       Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
     done
 
+let dcopy ~n ~xs ~incx ~ys ~incy = 
+  if n > 0 then
+    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+    for i = 0 to n-1 do
+      ys.(!iy) <- xs.(!ix);
+      ix := !ix + incx;
+      iy := !iy + incy;
+    done
 
 let dscal ~n ~alpha ~xs ~incx =
   if n > 0 && incx > 0 then

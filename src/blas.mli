@@ -4,6 +4,11 @@ val dswap : n:int ->
             ys:float array -> incy:int ->
             unit
 
+val dcopy : n:int ->
+            xs:float array -> incx:int ->
+            ys:float array -> incy:int ->
+            unit
+
 val dscal : n:int -> alpha:float ->
             xs:float array -> incx:int ->
             unit
