@@ -1,5 +1,5 @@
 
-let dswap ~n ~dx ~incx ~dy ~incy = 
+let dswap ~n ~xs ~incx ~ys ~incy = 
   if n > 0 then
     let dtemp = ref 0. in
     let ix = ref (if incx < 0 then (1-n)*incx else 0) in
@@ -7,20 +7,50 @@ let dswap ~n ~dx ~incx ~dy ~incy =
     Printf.printf "ix %d, iy %d, dtemp %f\n" !ix !iy !dtemp;
     for i = 0 to n-1 do
       Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
-      dtemp := dx.(!ix);
-      dx.(!ix) <- dy.(!iy);
-      dy.(!iy) <- !dtemp;
+      dtemp := xs.(!ix);
+      xs.(!ix) <- ys.(!iy);
+      ys.(!iy) <- !dtemp;
       ix := !ix + incx;
       iy := !iy + incy;
       Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
     done
 
 
-let dscal ~n ~da ~dx ~incx =
+let dscal ~n ~alpha ~xs ~incx =
   if n > 0 && incx > 0 then
     let ix = ref 0 in
     for i = 0 to n-1 do
-      dx.(!ix) <- da *. dx.(!ix);
+      xs.(!ix) <- alpha *. xs.(!ix);
       ix := !ix + incx;
   done
 
+let drotg ~alpha ~beta ~c ~s =
+  let abs_alpha = abs_float !alpha in
+  let abs_beta = abs_float !beta in
+  let roe = if (abs_alpha > abs_beta) then !alpha else !beta in
+  let scale = abs_alpha +. abs_beta in
+  let r = ref 0. in
+  let z = ref 0. in
+  let setup () = 
+    if scale == 0. then
+      let scale_zero () = 
+        c := 1.;
+        s := 0.;
+      in scale_zero()
+    else
+      let scale_nonzero () =
+        r := scale *. sqrt ( (!alpha /. scale)**2. +. (!beta /. scale)**2. );
+        r := (copysign 1. roe) ** (!r);
+        c := !alpha /. !r;
+        s := !beta /. !r;
+        z := 1.;
+        if abs_alpha > abs_beta then z := !s;
+        if abs_beta >= abs_alpha && !c != 0. then z := 1. /. !c;
+      in scale_nonzero()
+  in 
+  let final () =
+    alpha := !r;
+    beta := !z;
+  in
+  setup();
+  final();
