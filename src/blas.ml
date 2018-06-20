@@ -31,26 +31,38 @@ let drotg ~alpha ~beta ~c ~s =
   let scale = abs_alpha +. abs_beta in
   let r = ref 0. in
   let z = ref 0. in
-  let setup () = 
-    if scale == 0. then
-      let scale_zero () = 
-        c := 1.;
-        s := 0.;
-      in scale_zero()
-    else
-      let scale_nonzero () =
-        r := scale *. sqrt ( (!alpha /. scale)**2. +. (!beta /. scale)**2. );
-        r := (copysign 1. roe) ** (!r);
-        c := !alpha /. !r;
-        s := !beta /. !r;
-        z := 1.;
-        if abs_alpha > abs_beta then z := !s;
-        if abs_beta >= abs_alpha && !c != 0. then z := 1. /. !c;
-      in scale_nonzero()
-  in 
-  let final () =
-    alpha := !r;
-    beta := !z;
-  in
-  setup();
-  final();
+  let scaling () = 
+    if scale == 0. then (
+      c := 1.;
+      s := 0.;
+    )
+    else (
+      r := scale *. sqrt ( (!alpha /. scale)**2. +. (!beta /. scale)**2. );
+      r := (copysign 1. roe) ** (!r);
+      c := !alpha /. !r;
+      s := !beta /. !r;
+      z := 1.;
+      if abs_alpha > abs_beta then z := !s;
+      if abs_beta >= abs_alpha && !c != 0. then z := 1. /. !c;
+    )
+  in (
+      scaling();
+      alpha := !r;
+      beta := !z;
+    )
+
+let drot ~n ~xs ~incx ~ys ~incy ~c ~s = 
+  if n > 0 then
+    let dtemp = ref 0. in
+    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+    Printf.printf "ix %d, iy %d, dtemp %f\n" !ix !iy !dtemp;
+    for i = 0 to n-1 do
+      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
+      dtemp := c *. xs.(!ix) +. s *. ys.(!iy);
+      ys.(!iy) <- c *. ys.(!iy) -. s *. xs.(!ix);
+      xs.(!ix) <- !dtemp;
+      ix := !ix + incx;
+      iy := !iy + incy;
+      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
+    done
