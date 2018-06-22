@@ -9,6 +9,11 @@ val dcopy : n:int ->
             ys:float array -> incy:int ->
             unit
 
+val daxpy : n:int -> alpha:float -> 
+            xs:float array -> incx:int ->
+            ys:float array -> incy:int ->
+            unit
+
 val dscal : n:int -> alpha:float ->
             xs:float array -> incx:int ->
             unit
