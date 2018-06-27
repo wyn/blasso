@@ -1,65 +1,3 @@
-
-let dswap ~n ~xs ~incx ~ys ~incy = 
-  if n > 0 then
-    let dtemp = ref 0. in
-    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
-    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
-    Printf.printf "ix %d, iy %d, dtemp %f\n" !ix !iy !dtemp;
-    for i = 0 to n-1 do
-      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
-      dtemp := xs.(!ix);
-      xs.(!ix) <- ys.(!iy);
-      ys.(!iy) <- !dtemp;
-      ix := !ix + incx;
-      iy := !iy + incy;
-      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
-    done
-
-let dcopy ~n ~xs ~incx ~ys ~incy = 
-  if n > 0 then
-    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
-    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
-    for i = 0 to n-1 do
-      ys.(!iy) <- xs.(!ix);
-      ix := !ix + incx;
-      iy := !iy + incy;
-    done
-
-      
-let daxpy ~n ~alpha ~xs ~incx ~ys ~incy = 
-  if n > 0 && alpha != 0. then
-    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
-    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
-    for i = 0 to n-1 do
-      ys.(!iy) <- ys.(!iy) +. alpha *. xs.(!ix);
-      ix := !ix + incx;
-      iy := !iy + incy;
-    done
-
-let dscal ~n ~alpha ~xs ~incx =
-  if n > 0 && incx > 0 then
-    let ix = ref 0 in
-    for i = 0 to n-1 do
-      xs.(!ix) <- alpha *. xs.(!ix);
-      ix := !ix + incx;
-  done
-
-let ddot ~n ~xs ~incx ~ys ~incy =
-  let dtemp = ref 0. in 
-  let helper () =
-    if n > 0 then (
-      let ix = ref (if incx < 0 then (1-n)*incx else 0) in
-      let iy = ref (if incy < 0 then (1-n)*incy else 0) in
-      for i = 0 to n-1 do
-        dtemp := !dtemp +. ys.(!iy) *. xs.(!ix);
-        ix := !ix + incx;
-        iy := !iy + incy;
-      done
-    ) in (
-      helper();
-      !dtemp
-    )
-  
 let drotg ~alpha ~beta ~c ~s =
   let abs_alpha = abs_float !alpha in
   let abs_beta = abs_float !beta in
@@ -103,6 +41,71 @@ let drot ~n ~xs ~incx ~ys ~incy ~c ~s =
       Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
     done
 
+let dswap ~n ~xs ~incx ~ys ~incy = 
+  if n > 0 then
+    let dtemp = ref 0. in
+    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+    Printf.printf "ix %d, iy %d, dtemp %f\n" !ix !iy !dtemp;
+    for i = 0 to n-1 do
+      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
+      dtemp := xs.(!ix);
+      xs.(!ix) <- ys.(!iy);
+      ys.(!iy) <- !dtemp;
+      ix := !ix + incx;
+      iy := !iy + incy;
+      Printf.printf "%d: ix %d, iy %d, dtemp %f\n" i !ix !iy !dtemp;
+    done
+
+let dscal ~n ~alpha ~xs ~incx =
+  if n > 0 && incx > 0 then
+    let ix = ref 0 in
+    for i = 0 to n-1 do
+      xs.(!ix) <- alpha *. xs.(!ix);
+      ix := !ix + incx;
+  done
+
+let dcopy ~n ~xs ~incx ~ys ~incy = 
+  if n > 0 then
+    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+    for i = 0 to n-1 do
+      ys.(!iy) <- xs.(!ix);
+      ix := !ix + incx;
+      iy := !iy + incy;
+    done
+
+      
+let daxpy ~n ~alpha ~xs ~incx ~ys ~incy = 
+  if n > 0 && alpha != 0. then
+    let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+    let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+    for i = 0 to n-1 do
+      ys.(!iy) <- ys.(!iy) +. alpha *. xs.(!ix);
+      ix := !ix + incx;
+      iy := !iy + incy;
+    done
+
+let ddot ~n ~xs ~incx ~ys ~incy =
+  let dtemp = ref 0. in 
+  let helper () =
+    if n > 0 then (
+      let ix = ref (if incx < 0 then (1-n)*incx else 0) in
+      let iy = ref (if incy < 0 then (1-n)*incy else 0) in
+      for i = 0 to n-1 do
+        dtemp := !dtemp +. ys.(!iy) *. xs.(!ix);
+        ix := !ix + incx;
+        iy := !iy + incy;
+      done
+    ) in (
+      helper();
+      !dtemp
+    )
+  
+let dnrm2 ~n ~xs ~incx =
+  let dp = ddot n xs incx xs incx in
+  sqrt dp
+             
 let dasum ~n ~xs ~incx = 
   let dtemp = ref 0. in 
   let helper () =
@@ -139,7 +142,3 @@ let idamax ~n ~xs ~incx =
       !idmax
     )
            
-let dnrm2 ~n ~xs ~incx =
-  let dp = ddot n xs incx xs incx in
-  sqrt dp
-             
