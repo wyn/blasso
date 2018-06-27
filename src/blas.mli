@@ -40,5 +40,9 @@ val dasum : n:int ->
 val idamax : n:int ->
              xs:float array -> incx:int ->
              int
-              
+
+val dnrm2 : n:int ->
+            xs:float array -> incx:int ->
+            float
+               
                                                      

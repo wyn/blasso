@@ -139,3 +139,7 @@ let idamax ~n ~xs ~incx =
       !idmax
     )
            
+let dnrm2 ~n ~xs ~incx =
+  let dp = ddot n xs incx xs incx in
+  sqrt dp
+             
