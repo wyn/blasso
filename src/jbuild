@@ -1,5 +1,0 @@
-(jbuild_version 1)
- 
-(library
- ((name blasso)
-  (synopsis "pure ocaml implementation of BLAS")))

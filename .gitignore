@@ -8,6 +8,9 @@
 *.cmxs
 *.cmxa
 
+# opam local switch
+_opam/
+
 # ocamlbuild working directory
 _build/
 
