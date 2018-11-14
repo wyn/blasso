@@ -24,3 +24,6 @@ setup.log
 
 # merlin stuff
 *merlin
+
+# dune generated stuff
+dune-project
