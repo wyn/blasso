@@ -1,2 +1,3 @@
 (library
-  (name blasso))
+  (name blasso)
+  (modules_without_implementation a))
