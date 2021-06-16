@@ -92,3 +92,6 @@ ENV/
 # serverless settings
 /serverless/mappaEngineLambdas/node_modules/
 /bbd2e1firstfile.txt
+
+# ocaml/dune
+_build/
