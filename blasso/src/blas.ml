@@ -149,13 +149,13 @@ module Swap_data = struct
     result_: xsys option;
   }
 
-  let rec update t ~index ~value =
-    match t.result_ with
+  let rec update {xs_; ys_; result_} ~index ~value =
+    match result_ with
     | Some prev ->
-      let xs_ = t.xs_
+      let xs_ = xs_
                 |> Zipper.jump_to ~index
                 |> Zipper.set ~value in
-      let ys_ = t.ys_
+      let ys_ = ys_
                 |> Zipper.jump_to ~index in
       let prev_xs = prev.xs_
                     |> Zipper.jump_to ~index in
@@ -169,73 +169,80 @@ module Swap_data = struct
       {xs_; ys_; result_}
     | None ->
       let result_ = Some {
-          xs_=t.ys_ |> Zipper.to_array |> Zipper.of_array ~index;
-          ys_=t.xs_ |> Zipper.to_array |> Zipper.of_array ~index;
+          xs_=ys_ |> Zipper.to_array |> Zipper.of_array ~index;
+          ys_=xs_ |> Zipper.to_array |> Zipper.of_array ~index;
         } in
-      update {xs_=t.xs_; ys_=t.ys_; result_} ~index ~value
+      update {xs_; ys_; result_} ~index ~value
 end
 
-type scale_data = {
-  xs: Zipper.t;
-  alpha: float;
-  result: Zipper.t option;
-}
+module Scale_data = struct
 
-type copy_data = {
-  xs: Zipper.t;
-  result: Zipper.t option;
-}
+  type t = {
+    xs_: Zipper.t;
+    alpha_: float;
+    result_: Zipper.t option;
+  }
+
+  let rec update {xs_; alpha_; result_} ~index ~value =
+    match result_ with
+    | Some prev ->
+      let xs_ = xs_
+                |> Zipper.jump_to ~index
+                |> Zipper.set ~value in
+      let chc_at_i = prev |> Zipper.jump_to ~index in
+      let result_ = Some (chc_at_i |> Zipper.set ~value:(value *. alpha_)) in
+      {xs_; alpha_; result_}
+    | None ->
+      let result_ = Some (
+          xs_
+          |> Zipper.to_array
+          |> Array.map (fun x -> x *. alpha_)
+          |> Zipper.of_array ~index
+        ) in
+      update {xs_; alpha_; result_} ~index ~value
+
+end
+
+module Copy_data = struct
+
+  type t = {
+    xs_: Zipper.t;
+    result_: Zipper.t option;
+  }
+
+  let rec update {xs_; result_} ~index ~value =
+    match result_ with
+    | Some prev ->
+      let xs_ = xs_
+                |> Zipper.jump_to ~index
+                |> Zipper.set ~value in
+      let result_ = Some (
+          prev
+          |> Zipper.jump_to ~index
+          |> Zipper.set ~value
+        ) in
+      {xs_; result_}
+    | None ->
+      let result_ = Some (
+          xs_
+          |> Zipper.to_array
+          |> Zipper.of_array ~index
+        ) in
+      update {xs_; result_} ~index ~value
+
+end
 
 type blas_expr =
   | Dot of Dot_data.t
-  | Scale of scale_data
-  | Copy of copy_data
   | Swap of Swap_data.t
+  | Scale of Scale_data.t
+  | Copy of Copy_data.t
 
 (* some comments *)
 
-let rec update blas_expr ~index ~value =
-
+let update blas_expr ~index ~value =
   match blas_expr with
   | Dot data -> Dot (Dot_data.update data ~index ~value)
   | Swap data -> Swap (Swap_data.update data ~index ~value)
-
-  | Scale {xs; alpha; result} -> (
-      match result with
-      | Some prev ->
-        let xs = xs
-                 |> Zipper.jump_to ~index
-                 |> Zipper.set ~value in
-        let chc_at_i = prev |> Zipper.jump_to ~index in
-        let result = Some (chc_at_i |> Zipper.set ~value:(value *. alpha)) in
-        Scale {xs; alpha; result}
-      | None ->
-        let result = Some (
-            xs
-            |> Zipper.to_array
-            |> Array.map (fun x -> x *. alpha)
-            |> Zipper.of_array ~index
-          ) in
-        update (Scale {xs; alpha; result}) ~index ~value
-    )
-  | Copy {xs; result} -> (
-      match result with
-      | Some prev ->
-        let xs = xs
-                 |> Zipper.jump_to ~index
-                 |> Zipper.set ~value in
-        let result = Some (
-            prev
-            |> Zipper.jump_to ~index
-            |> Zipper.set ~value
-          ) in
-        Copy {xs; result}
-      | None ->
-        let result = Some (
-            xs
-            |> Zipper.to_array
-            |> Zipper.of_array ~index
-          ) in
-        update (Copy {xs; result}) ~index ~value
-    )
-
+  | Scale data -> Scale (Scale_data.update data ~index ~value)
+  | Copy data -> Copy (Copy_data.update data ~index ~value)
