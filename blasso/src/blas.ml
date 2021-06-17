@@ -10,6 +10,8 @@
 
 module Z = Zipper
 
+type coord = | X | Y | Z
+
 module Dot_data = struct
 
   type input = Z.t
@@ -31,19 +33,32 @@ module Dot_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update ({xs_; ys_; result_} as t) ~index ~value =
+  let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
     match (xs_, ys_, result_) with
     | (Some xs, Some ys, Some prev) ->
       let xs_at_i = xs |> Z.jump_to ~index in
       let x0 = xs_at_i |> Z.get in
       let ys_at_i = ys |> Z.jump_to ~index in
       let y0 = ys_at_i |> Z.get in
-      let result_ = Some (prev +. y0 *. (value -. x0)) in
-      {
-        xs_=Some (xs_at_i |> Z.set ~value);
-        ys_=Some ys_at_i;
-        result_;
-      }
+      let xs_, ys_, result_ = match coord with
+        | X -> (
+            Some (xs_at_i |> Z.set ~value),
+            Some ys_at_i,
+            Some (prev +. y0 *. (value -. x0))
+          )
+        | Y -> (
+            Some xs_at_i,
+            Some (ys_at_i |> Z.set ~value),
+            Some (prev +. x0 *. (value -. y0))
+          )
+        | Z -> (
+            Some xs_at_i,
+            Some ys_at_i,
+            Some prev
+          )
+      in
+      {xs_; ys_; result_}
+
     | (Some xs, Some ys, None) ->
       let xarr = xs |> Z.to_array in
       let yarr = ys |> Z.to_array in
@@ -51,7 +66,8 @@ module Dot_data = struct
                           |> Array.map2 (fun x y -> x *. y) xarr
                           |> Array.fold_left (fun acc v -> acc +. v) 0.)
       in
-      update {xs_; ys_; result_} ~index ~value
+      update {xs_; ys_; result_} ~index ~value ~coord
+
     | (None, _, _) | (_, None, _) -> t
 
 end
@@ -211,9 +227,20 @@ type blas_expr =
 
 (* some comments *)
 
-let update blas_expr ~index ~value =
+let update blas_expr ~index ~value ~coord =
   match blas_expr with
-  | Dot data -> Dot (Dot_data.update data ~index ~value)
+  | Dot data -> Dot (Dot_data.update data ~index ~value ~coord)
   | Swap data -> Swap (Swap_data.update data ~index ~value)
   | Scale data -> Scale (Scale_data.update data ~index ~value)
   | Copy data -> Copy (Copy_data.update data ~index ~value)
+
+(* want to do stuff like
+ *
+ * let x = 1D(array...) in
+ * let y = Copy(x) |> Scale(0.3) in
+ * let z = Dot(x, y) # TODO update on y too
+ *
+ * let z_ = Update(z, 3, x=400.)
+ * or
+ * let z_ = Update(z, 2, y=-1.)
+ *  *)
