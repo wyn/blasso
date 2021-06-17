@@ -28,16 +28,22 @@ module Zipper = struct
   let of_array arr ~index =
     let n = Array.length arr in
     let i = _clamp 0 n index in {
-      left_=Array.sub arr 0 i |> Array.to_list |> List.rev;
+      left_=Array.sub arr 0 i
+            |> Array.to_list
+            |> List.rev;
       focus_=arr.(i);
-      right_=Array.sub arr (i+1) (n-(i+1)) |> Array.to_list;
+      right_=Array.sub arr (i+1) (n-(i+1))
+             |> Array.to_list;
       index_=i;
       length_=n;
     }
 
   let to_array {left_; focus_; right_; _} =
-    let left_ = left_ |> List.rev |> Array.of_list in
-    let right_ = right_ |> Array.of_list in
+    let left_ = left_
+                |> List.rev
+                |> Array.of_list in
+    let right_ = right_
+                 |> Array.of_list in
     Array.concat [left_; [|focus_|]; right_]
 
   let shift_left t =
@@ -70,53 +76,109 @@ module Zipper = struct
     let i = t.index_ in
     match compare i new_index with
     | 0 -> t
-    | 1 -> let t = shift_left t in jump_to t ~index:new_index
-    | _ -> let t = shift_right t in jump_to t ~index:new_index
+
+    | 1 -> shift_left t
+           |> jump_to ~index:new_index
+
+    | _ -> shift_right t
+           |> jump_to ~index:new_index
 
 
 
 end
 
-type blas_data = {
+(* NOTE
+ *
+ * always updating xs at one index location with a new value,
+ * and also updating the result with the appropriate new calc value/values
+ *
+ *  If the result hasnt been set (=None) then do full calculation first
+ *  and then update *)
+
+type dot_data = {
   xs: Zipper.t;
-  ys: Zipper.t;
-  cache: float option;
+  ys: float array;
+  result: float option; (* not really a float, its a list of sums of pointwise multiplies *)
+}
+
+type scale_data = {
+  xs: Zipper.t;
+  alpha: float;
+  result: Zipper.t option;
+}
+
+type copy_data = {
+  xs: Zipper.t;
+  result: Zipper.t option;
 }
 
 type blas_expr =
-  | Dot of blas_data
-  | Swap of blas_data
+  | Dot of dot_data
+  | Scale of scale_data
+  | Copy of copy_data
 
 (* some comments *)
 
 let rec update blas_expr ~index ~value =
+
   match blas_expr with
-  | Dot {xs; ys; cache} -> (
-      match cache with
+
+  | Dot {xs; ys; result} -> (
+      match result with
       | Some prev ->
         let xs_at_i = xs |> Zipper.jump_to ~index in
-        let ys_at_i = ys |> Zipper.jump_to ~index in
         let x0 = xs_at_i |> Zipper.get in
-        let y0 = ys_at_i |> Zipper.get in
+        let y0 = ys.(index) in
         let result = Some (prev +. y0 *. (value -. x0)) in
         Dot {
           xs=xs_at_i |> Zipper.set ~value;
-          ys=ys_at_i;
-          cache=result
+          ys;
+          result;
         }
       | None ->
         let xarr = xs |> Zipper.to_array in
-        let yarr = ys |> Zipper.to_array in
-        let cache = Some (
-            Array.map2 (fun x y -> x *. y) xarr yarr |>
-            Array.fold_left (fun acc v -> acc +. v) 0.
+        let result = Some (
+            ys
+            |> Array.map2 (fun x y -> x *. y) xarr
+            |> Array.fold_left (fun acc v -> acc +. v) 0.
           ) in
-        update (Dot {xs; ys; cache}) ~index ~value
+        update (Dot {xs; ys; result}) ~index ~value
     )
-  | Swap {xs; ys; cache} ->
-    let xs_at_i = xs |> Zipper.jump_to ~index in
-    let ys_at_i = ys |> Zipper.jump_to ~index in
-    let tmp = xs_at_i |> Zipper.get in
-    let xs = xs_at_i |> Zipper.set ~value:(Zipper.get ys_at_i) in
-    let ys = ys_at_i |> Zipper.set ~value:tmp in
-    Swap {xs; ys; cache}
+
+  | Scale {xs; alpha; result} -> (
+      match result with
+      | Some prev ->
+        let xs = xs
+                 |> Zipper.jump_to ~index
+                 |> Zipper.set ~value in
+        let chc_at_i = prev |> Zipper.jump_to ~index in
+        let result = Some (chc_at_i |> Zipper.set ~value:(value *. alpha)) in
+        Scale {xs; alpha; result}
+      | None ->
+        let result = Some (
+            xs
+            |> Zipper.to_array
+            |> Array.map (fun x -> x *. alpha)
+            |> Zipper.of_array ~index
+          ) in
+        update (Scale {xs; alpha; result}) ~index ~value
+    )
+  | Copy {xs; result} ->
+    match result with
+    | Some prev ->
+      let xs = xs
+               |> Zipper.jump_to ~index
+               |> Zipper.set ~value in
+      let result = Some (
+          prev
+          |> Zipper.jump_to ~index
+          |> Zipper.set ~value
+        ) in
+      Copy {xs; result}
+    | None ->
+      let result = Some (
+          xs
+          |> Zipper.to_array
+          |> Zipper.of_array ~index
+        ) in
+      update (Copy {xs; result}) ~index ~value
