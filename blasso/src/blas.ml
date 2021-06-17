@@ -17,11 +17,17 @@ module Zipper = struct
 
   let get t = t.focus_
 
-  let set {left_; focus_=_; right_; index_; length_} value = {left_; focus_=value; right_; index_; length_}
+  let set {left_; focus_=_; right_; index_; length_} ~value = {
+    left_;
+    focus_=value;
+    right_;
+    index_;
+    length_;
+  }
 
-  let of_array arr i =
+  let of_array arr ~index =
     let n = Array.length arr in
-    let i = _clamp 0 n i in {
+    let i = _clamp 0 n index in {
       left_=Array.sub arr 0 i |> Array.to_list |> List.rev;
       focus_=arr.(i);
       right_=Array.sub arr (i+1) (n-(i+1)) |> Array.to_list;
@@ -58,14 +64,14 @@ module Zipper = struct
         length_=t.length_;
       }
 
-  let rec jump_to t ~new_index =
+  let rec jump_to t ~index =
     let n = t.length_ in
-    let new_index = _clamp 0 n new_index in
+    let new_index = _clamp 0 n index in
     let i = t.index_ in
     match compare i new_index with
     | 0 -> t
-    | 1 -> let t = shift_left t in jump_to t ~new_index
-    | _ -> let t = shift_right t in jump_to t ~new_index
+    | 1 -> let t = shift_left t in jump_to t ~index:new_index
+    | _ -> let t = shift_right t in jump_to t ~index:new_index
 
 
 
