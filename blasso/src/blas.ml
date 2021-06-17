@@ -79,7 +79,7 @@ end
 
 type blas_data = {
   xs: Zipper.t;
-  ys: float array;
+  ys: Zipper.t;
   cache: float option;
 }
 
@@ -89,29 +89,34 @@ type blas_expr =
 
 (* some comments *)
 
-let rec inc blas_expr i new_value =
+let rec update blas_expr ~index ~value =
   match blas_expr with
   | Dot {xs; ys; cache} -> (
       match cache with
       | Some prev ->
-        let xs_at_i = xs |> Zipper.jump_to ~index:i in
+        let xs_at_i = xs |> Zipper.jump_to ~index in
+        let ys_at_i = ys |> Zipper.jump_to ~index in
         let x0 = xs_at_i |> Zipper.get in
-        let y0 = ys.(i) in
-        let result = Some (prev +. y0 *. (new_value -. x0)) in
-        let xs = xs_at_i |> Zipper.set ~value:new_value in
-        Dot {xs; ys; cache=result}
+        let y0 = ys_at_i |> Zipper.get in
+        let result = Some (prev +. y0 *. (value -. x0)) in
+        Dot {
+          xs=xs_at_i |> Zipper.set ~value;
+          ys=ys_at_i;
+          cache=result
+        }
       | None ->
+        let xarr = xs |> Zipper.to_array in
+        let yarr = ys |> Zipper.to_array in
         let cache = Some (
-            xs |>
-            Zipper.to_array |>
-            Array.map2 (fun y x -> y *. x) ys |>
+            Array.map2 (fun x y -> x *. y) xarr yarr |>
             Array.fold_left (fun acc v -> acc +. v) 0.
           ) in
-        inc (Dot {xs; ys; cache}) i new_value
+        update (Dot {xs; ys; cache}) ~index ~value
     )
   | Swap {xs; ys; cache} ->
-    let xs_at_i = xs |> Zipper.jump_to ~index:i in
+    let xs_at_i = xs |> Zipper.jump_to ~index in
+    let ys_at_i = ys |> Zipper.jump_to ~index in
     let tmp = xs_at_i |> Zipper.get in
-    let xs = xs_at_i |> Zipper.set ~value:ys.(i) in
-    let () = ys.(i) <- tmp in
+    let xs = xs_at_i |> Zipper.set ~value:(Zipper.get ys_at_i) in
+    let ys = ys_at_i |> Zipper.set ~value:tmp in
     Swap {xs; ys; cache}

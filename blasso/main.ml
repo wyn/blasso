@@ -7,10 +7,10 @@ let _ =
   let s0 = 570. in
   let d = B.Dot {
       xs=x0 |> B.Zipper.of_array ~index:0;
-      ys=y0;
+      ys=y0 |> B.Zipper.of_array ~index:0;
       cache=(Some s0);
     } in
-  let s1 = match B.inc d 4 (Array.get x1 4) with
+  let s1 = match B.update d ~index:4 ~value:(Array.get x1 4) with
     | B.Dot {cache=Some v; _} -> v
     | _ -> raise (Sys_error "Unknown Blas op")
   in
