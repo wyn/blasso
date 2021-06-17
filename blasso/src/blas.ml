@@ -108,28 +108,72 @@ module Dot_data = struct
     result_=None;
   }
 
-
   let result t = t.result_
 
+  let rec update {xs_; ys_; result_} ~index ~value =
+    match result_ with
+    | Some prev ->
+      let xs_at_i = xs_ |> Zipper.jump_to ~index in
+      let x0 = xs_at_i |> Zipper.get in
+      let ys_at_i = ys_ |> Zipper.jump_to ~index in
+      let y0 = ys_at_i |> Zipper.get in
+      let result_ = Some (prev +. y0 *. (value -. x0)) in
+      {
+        xs_=xs_at_i |> Zipper.set ~value;
+        ys_=ys_at_i;
+        result_;
+      }
+    | None ->
+      let xarr = xs_ |> Zipper.to_array in
+      let yarr = ys_ |> Zipper.to_array in
+      let result_ = Some (
+          yarr
+          |> Array.map2 (fun x y -> x *. y) xarr
+          |> Array.fold_left (fun acc v -> acc +. v) 0.
+        ) in
+      update {xs_; ys_; result_} ~index ~value
 
 end
 
-type xsys = {
-  xs: Zipper.t;
-  ys: Zipper.t;
-}
 
-type dot_data = {
-  xs: Zipper.t;
-  ys: Zipper.t;
-  result: float option; (* not really a float, its a list of sums of pointwise multiplies *)
-}
+module Swap_data = struct
 
-type swap_data = {
-  xs: Zipper.t;
-  ys: Zipper.t;
-  result: xsys option;
-}
+  type xsys = {
+    xs_: Zipper.t;
+    ys_: Zipper.t;
+  }
+
+  type t = {
+    xs_: Zipper.t;
+    ys_: Zipper.t;
+    result_: xsys option;
+  }
+
+  let rec update t ~index ~value =
+    match t.result_ with
+    | Some prev ->
+      let xs_ = t.xs_
+                |> Zipper.jump_to ~index
+                |> Zipper.set ~value in
+      let ys_ = t.ys_
+                |> Zipper.jump_to ~index in
+      let prev_xs = prev.xs_
+                    |> Zipper.jump_to ~index in
+      let prev_ys = prev.ys_
+                    |> Zipper.jump_to ~index
+                    |> Zipper.set ~value in
+      let result_ = Some {
+          xs_=prev_xs;
+          ys_=prev_ys
+        } in
+      {xs_; ys_; result_}
+    | None ->
+      let result_ = Some {
+          xs_=t.ys_ |> Zipper.to_array |> Zipper.of_array ~index;
+          ys_=t.xs_ |> Zipper.to_array |> Zipper.of_array ~index;
+        } in
+      update {xs_=t.xs_; ys_=t.ys_; result_} ~index ~value
+end
 
 type scale_data = {
   xs: Zipper.t;
@@ -143,39 +187,18 @@ type copy_data = {
 }
 
 type blas_expr =
-  | Dot of dot_data
+  | Dot of Dot_data.t
   | Scale of scale_data
   | Copy of copy_data
-  | Swap of swap_data
+  | Swap of Swap_data.t
 
 (* some comments *)
 
 let rec update blas_expr ~index ~value =
 
   match blas_expr with
-  | Dot {xs; ys; result} -> (
-      match result with
-      | Some prev ->
-        let xs_at_i = xs |> Zipper.jump_to ~index in
-        let x0 = xs_at_i |> Zipper.get in
-        let ys_at_i = ys |> Zipper.jump_to ~index in
-        let y0 = ys_at_i |> Zipper.get in
-        let result = Some (prev +. y0 *. (value -. x0)) in
-        Dot {
-          xs=xs_at_i |> Zipper.set ~value;
-          ys=ys_at_i;
-          result;
-        }
-      | None ->
-        let xarr = xs |> Zipper.to_array in
-        let yarr = ys |> Zipper.to_array in
-        let result = Some (
-            yarr
-            |> Array.map2 (fun x y -> x *. y) xarr
-            |> Array.fold_left (fun acc v -> acc +. v) 0.
-          ) in
-        update (Dot {xs; ys; result}) ~index ~value
-    )
+  | Dot data -> Dot (Dot_data.update data ~index ~value)
+  | Swap data -> Swap (Swap_data.update data ~index ~value)
 
   | Scale {xs; alpha; result} -> (
       match result with
@@ -216,28 +239,3 @@ let rec update blas_expr ~index ~value =
         update (Copy {xs; result}) ~index ~value
     )
 
-  | Swap {xs; ys; result} -> (
-      match result with
-      | Some prev ->
-        let xs = xs
-                 |> Zipper.jump_to ~index
-                 |> Zipper.set ~value in
-        let ys = ys
-                 |> Zipper.jump_to ~index in
-        let prev_xs = prev.xs
-                      |> Zipper.jump_to ~index in
-        let prev_ys = prev.ys
-                      |> Zipper.jump_to ~index
-                      |> Zipper.set ~value in
-        let result = Some {
-            xs=prev_xs;
-            ys=prev_ys
-          } in
-        Swap {xs; ys; result}
-      | None ->
-        let result = Some {
-            xs=ys |> Zipper.to_array |> Zipper.of_array ~index;
-            ys=xs |> Zipper.to_array |> Zipper.of_array ~index;
-          } in
-        update (Swap {xs; ys; result}) ~index ~value
-    )
