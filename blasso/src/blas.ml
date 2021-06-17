@@ -1,3 +1,9 @@
+type 'a array_zipper = {
+  left: 'a array;
+  focus: 'a;
+  right: 'a array
+}
+
 type blas_data = {
   xs: float array;
   ys: float array;
@@ -17,11 +23,14 @@ let rec inc blas_expr i new_value =
       | Some prev ->
         let x0 = xs.(i) in
         let y0 = ys.(i) in
-        let curr = prev +. y0 *. (new_value -. x0) in
+        let value = Some (prev +. y0 *. (new_value -. x0)) in
         let () = xs.(i) <- new_value in
-        Dot {xs; ys; value=(Some curr)}
+        Dot {xs; ys; value}
       | None ->
-        let value = Some (Array.map2 (fun x y -> x *. y) xs ys |> Array.fold_left (fun acc v -> acc +. v) 0.) in
+        let value = Some (
+            Array.map2 (fun x y -> x *. y) xs ys |>
+            Array.fold_left (fun acc v -> acc +. v) 0.
+          ) in
         inc (Dot {xs; ys; value}) i new_value
     )
   | Swap {xs; ys; value} ->
