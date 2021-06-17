@@ -1,26 +1,29 @@
 (* NOTE
-  *
-  * only ever updating xs at one index location at a time
-  * and also updating the result with the appropriate new calc value/values
-  *
-  *  If the result hasnt been set (=None) then do full calculation first
-  *  and then update *)
+ *
+ * only ever updating xs at one index location at a time
+ * and also updating the result with the appropriate new calc value/values
+ *
+ *  If the result hasnt been set (=None) then do full calculation first
+ *  and then update
+ *
+ * if any of the input/inputs are not set then also dont do anything yet *)
 
 module Z = Zipper
 
 module Dot_data = struct
 
-  type result = float (* not really a float, its a list of sums of pointwise multiplies *)
+  type input = Z.t
+  type output = float (* not really a float, its a list of sums of pointwise multiplies *)
 
   type t = {
-    xs_: Z.t;
-    ys_: Z.t;
-    result_: result option;
+    xs_: input option;
+    ys_: input option;
+    result_: output option;
   }
 
-  let init xs ys = {
-    xs_=xs |> Z.of_array ~index:0;
-    ys_=ys |> Z.of_array ~index:0;
+  let init ?xarr:(xarr=None) ?yarr:(yarr=None) = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
+    ys_=yarr |> Option.map (Z.of_array ~index:0);
     result_=None;
   }
 
@@ -28,48 +31,50 @@ module Dot_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update {xs_; ys_; result_} ~index ~value =
-    match result_ with
-    | Some prev ->
-      let xs_at_i = xs_ |> Z.jump_to ~index in
+  let rec update ({xs_; ys_; result_} as t) ~index ~value =
+    match (xs_, ys_, result_) with
+    | (Some xs, Some ys, Some prev) ->
+      let xs_at_i = xs |> Z.jump_to ~index in
       let x0 = xs_at_i |> Z.get in
-      let ys_at_i = ys_ |> Z.jump_to ~index in
+      let ys_at_i = ys |> Z.jump_to ~index in
       let y0 = ys_at_i |> Z.get in
       let result_ = Some (prev +. y0 *. (value -. x0)) in
       {
-        xs_=xs_at_i |> Z.set ~value;
-        ys_=ys_at_i;
+        xs_=Some (xs_at_i |> Z.set ~value);
+        ys_=Some ys_at_i;
         result_;
       }
-    | None ->
-      let xarr = xs_ |> Z.to_array in
-      let yarr = ys_ |> Z.to_array in
-      let result_ = Some (
-          yarr
-          |> Array.map2 (fun x y -> x *. y) xarr
-          |> Array.fold_left (fun acc v -> acc +. v) 0.
-        ) in
+    | (Some xs, Some ys, None) ->
+      let xarr = xs |> Z.to_array in
+      let yarr = ys |> Z.to_array in
+      let result_ = Some (yarr
+                          |> Array.map2 (fun x y -> x *. y) xarr
+                          |> Array.fold_left (fun acc v -> acc +. v) 0.)
+      in
       update {xs_; ys_; result_} ~index ~value
+    | (None, _, _) | (_, None, _) -> t
 
 end
 
 
 module Swap_data = struct
 
-  type result = {
-    xs_: Z.t;
-    ys_: Z.t;
+  type input = Z.t
+
+  type output = {
+    oxs_: Z.t;
+    oys_: Z.t;
   }
 
   type t = {
-    xs_: Z.t;
-    ys_: Z.t;
-    result_: result option;
+    xs_: input option;
+    ys_: input option;
+    result_: output option;
   }
 
-  let init xs ys = {
-    xs_=xs |> Z.of_array ~index:0;
-    ys_=ys |> Z.of_array ~index:0;
+  let init ?xarr:(xarr=None) ?yarr:(yarr=None) = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
+    ys_=yarr |> Option.map (Z.of_array ~index:0);
     result_=None;
   }
 
@@ -77,30 +82,34 @@ module Swap_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update {xs_; ys_; result_} ~index ~value =
-    match result_ with
-    | Some prev ->
-      let xs_ = xs_
-                |> Z.jump_to ~index
-                |> Z.set ~value in
-      let ys_ = ys_
-                |> Z.jump_to ~index in
-      let prev_xs = prev.xs_
-                    |> Z.jump_to ~index in
-      let prev_ys = prev.ys_
-                    |> Z.jump_to ~index
-                    |> Z.set ~value in
+  let rec update ({xs_; ys_; result_} as t) ~index ~value =
+    match (xs_, ys_, result_) with
+    | (Some xs, Some ys, Some prev) ->
+      let xs_ = Some (xs
+                      |> Z.jump_to ~index
+                      |> Z.set ~value)
+      in
+      let ys_ = Some (ys |> Z.jump_to ~index) in
+      let prev_oxs = prev.oxs_ |> Z.jump_to ~index in
+      let prev_oys = prev.oys_
+                     |> Z.jump_to ~index
+                     |> Z.set ~value
+      in
       let result_ = Some {
-          xs_=prev_xs;
-          ys_=prev_ys
+          oxs_=prev_oxs;
+          oys_=prev_oys;
         } in
       {xs_; ys_; result_}
-    | None ->
+
+    | (Some xs, Some ys, None) ->
       let result_ = Some {
-          xs_=ys_ |> Z.to_array |> Z.of_array ~index;
-          ys_=xs_ |> Z.to_array |> Z.of_array ~index;
+          oxs_=ys |> Z.to_array |> Z.of_array ~index;
+          oys_=xs |> Z.to_array |> Z.of_array ~index;
         } in
       update {xs_; ys_; result_} ~index ~value
+
+    | (None, _, _) | (_, None, _) -> t
+
 end
 
 module Scale_data = struct
@@ -127,36 +136,28 @@ module Scale_data = struct
         result_=None
       }
 
-  let reset t xs = {
-    xs_=Some xs;
-    alpha_=t.alpha_;
-    result_=t.result_
-  }
-
   let result t = t.result_
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update {xs_; alpha_; result_} ~index ~value =
+  let rec update ({xs_; alpha_; result_} as t) ~index ~value =
     match (xs_, result_) with
     | (Some xs, Some prev) ->
-      let xs_ = Some (
-          xs
-          |> Z.jump_to ~index
-          |> Z.set ~value
-        ) in
+      let xs_ = Some (xs
+                      |> Z.jump_to ~index
+                      |> Z.set ~value)
+      in
       let chc_at_i = prev |> Z.jump_to ~index in
       let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
       {xs_; alpha_; result_}
     | (Some xs, None) ->
-      let result_ = Some (
-          xs
-          |> Z.to_array
-          |> Array.map (fun x -> x *. alpha_)
-          |> Z.of_array ~index)
+      let result_ = Some (xs
+                          |> Z.to_array
+                          |> Array.map (fun x -> x *. alpha_)
+                          |> Z.of_array ~index)
       in
       update {xs_; alpha_; result_} ~index ~value
-    | (None, _) -> {xs_; alpha_; result_}
+    | (None, _) -> t
 
 end
 
@@ -175,38 +176,30 @@ module Copy_data = struct
     result_=None;
   }
 
-  let reset t xs = {
-    xs_=Some xs;
-    result_=t.result_
-  }
-
   let result t = t.result_
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update {xs_; result_} ~index ~value =
+  let rec update ({xs_; result_}as t) ~index ~value =
     match (xs_, result_) with
     | (Some xs, Some prev) ->
-      let xs_ = Some (
-          xs
-          |> Z.jump_to ~index
-          |> Z.set ~value
-        ) in
-      let result_ = Some (
-          prev
-          |> Z.jump_to ~index
-          |> Z.set ~value
-        ) in
+      let xs_ = Some (xs
+                      |> Z.jump_to ~index
+                      |> Z.set ~value)
+      in
+      let result_ = Some (prev
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+      in
       {xs_; result_}
 
     | (Some xs, None) ->
-      let result_ = Some (
-          xs
-          |> Z.to_array
-          |> Z.of_array ~index
-        ) in
+      let result_ = Some (xs
+                          |> Z.to_array
+                          |> Z.of_array ~index)
+      in
       update {xs_; result_} ~index ~value
-    | (None, _) -> {xs_; result_}
+    | (None, _) -> t
 
 end
 
