@@ -98,31 +98,50 @@ module Swap_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update ({xs_; ys_; result_} as t) ~index ~value =
+  let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
     match (xs_, ys_, result_) with
-    | (Some xs, Some ys, Some prev) ->
-      let xs_ = Some (xs
-                      |> Z.jump_to ~index
-                      |> Z.set ~value)
-      in
-      let ys_ = Some (ys |> Z.jump_to ~index) in
-      let prev_oxs = prev.oxs_ |> Z.jump_to ~index in
-      let prev_oys = prev.oys_
-                     |> Z.jump_to ~index
-                     |> Z.set ~value
-      in
-      let result_ = Some {
-          oxs_=prev_oxs;
-          oys_=prev_oys;
-        } in
-      {xs_; ys_; result_}
-
+    | (Some xs, Some ys, Some prev) -> (
+        match coord with
+        | X ->
+          let xs_ = Some (xs
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+          in
+          let ys_ = Some (ys |> Z.jump_to ~index) in
+          let prev_oxs = prev.oxs_ |> Z.jump_to ~index in
+          let prev_oys = prev.oys_
+                         |> Z.jump_to ~index
+                         |> Z.set ~value
+          in
+          let result_ = Some {
+              oxs_=prev_oxs;
+              oys_=prev_oys;
+            } in
+          {xs_; ys_; result_}
+        | Y ->
+          let xs_ = Some (xs |> Z.jump_to ~index) in
+          let ys_ = Some (ys
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+          in
+          let prev_oxs = prev.oxs_
+                         |> Z.jump_to ~index
+                         |> Z.set ~value
+          in
+          let prev_oys = prev.oys_ |> Z.jump_to ~index in
+          let result_ = Some {
+              oxs_=prev_oxs;
+              oys_=prev_oys;
+            } in
+          {xs_; ys_; result_}
+        | Z -> t
+      )
     | (Some xs, Some ys, None) ->
       let result_ = Some {
           oxs_=ys |> Z.to_array |> Z.of_array ~index;
           oys_=xs |> Z.to_array |> Z.of_array ~index;
         } in
-      update {xs_; ys_; result_} ~index ~value
+      update {xs_; ys_; result_} ~index ~value ~coord
 
     | (None, _, _) | (_, None, _) -> t
 
@@ -156,23 +175,29 @@ module Scale_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update ({xs_; alpha_; result_} as t) ~index ~value =
+  let rec update ({xs_; alpha_; result_} as t) ~index ~value ~coord =
     match (xs_, result_) with
-    | (Some xs, Some prev) ->
-      let xs_ = Some (xs
-                      |> Z.jump_to ~index
-                      |> Z.set ~value)
-      in
-      let chc_at_i = prev |> Z.jump_to ~index in
-      let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
-      {xs_; alpha_; result_}
+    | (Some xs, Some prev) -> (
+        match coord with
+        | X ->
+          let xs_ = Some (xs
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+          in
+          let chc_at_i = prev |> Z.jump_to ~index in
+          let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
+          {xs_; alpha_; result_}
+        | Y | Z -> t
+      )
+
     | (Some xs, None) ->
       let result_ = Some (xs
                           |> Z.to_array
                           |> Array.map (fun x -> x *. alpha_)
                           |> Z.of_array ~index)
       in
-      update {xs_; alpha_; result_} ~index ~value
+      update {xs_; alpha_; result_} ~index ~value ~coord
+
     | (None, _) -> t
 
 end
@@ -196,25 +221,28 @@ module Copy_data = struct
 
   let is_ready t = result t |> Option.is_some
 
-  let rec update ({xs_; result_}as t) ~index ~value =
+  let rec update ({xs_; result_}as t) ~index ~value ~coord =
     match (xs_, result_) with
-    | (Some xs, Some prev) ->
-      let xs_ = Some (xs
-                      |> Z.jump_to ~index
-                      |> Z.set ~value)
-      in
-      let result_ = Some (prev
+    | (Some xs, Some prev) -> (
+        match coord with
+        | X ->
+          let xs_ = Some (xs
                           |> Z.jump_to ~index
                           |> Z.set ~value)
-      in
-      {xs_; result_}
-
+          in
+          let result_ = Some (prev
+                              |> Z.jump_to ~index
+                              |> Z.set ~value)
+          in
+          {xs_; result_}
+        | Y | Z -> t
+      )
     | (Some xs, None) ->
       let result_ = Some (xs
                           |> Z.to_array
                           |> Z.of_array ~index)
       in
-      update {xs_; result_} ~index ~value
+      update {xs_; result_} ~index ~value ~coord
     | (None, _) -> t
 
 end
@@ -230,9 +258,16 @@ type blas_expr =
 let update blas_expr ~index ~value ~coord =
   match blas_expr with
   | Dot data -> Dot (Dot_data.update data ~index ~value ~coord)
-  | Swap data -> Swap (Swap_data.update data ~index ~value)
-  | Scale data -> Scale (Scale_data.update data ~index ~value)
-  | Copy data -> Copy (Copy_data.update data ~index ~value)
+  | Swap data -> Swap (Swap_data.update data ~index ~value ~coord)
+  | Scale data -> Scale (Scale_data.update data ~index ~value ~coord)
+  | Copy data -> Copy (Copy_data.update data ~index ~value ~coord)
+
+(* rotg - setup and doing
+ * max index
+ * sum abs
+ * norm - sqrt (sum (xi**2)) /n ?
+ * axpy
+ *  *)
 
 (* want to do stuff like
  *
