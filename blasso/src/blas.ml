@@ -95,9 +95,28 @@ end
  *  If the result hasnt been set (=None) then do full calculation first
  *  and then update *)
 
+module Dot_data = struct
+  type t = {
+    xs_: Zipper.t;
+    ys_: float array;
+    result_: float option; (* not really a float, its a list of sums of pointwise multiplies *)
+  }
+
+  let init xs ys = {
+    xs_=xs |> Zipper.of_array ~index:0;
+    ys_=ys;
+    result_=None;
+  }
+
+
+  let result t = t.result_
+
+
+end
+
 type dot_data = {
   xs: Zipper.t;
-  ys: float array;
+  ys: Zipper.t;
   result: float option; (* not really a float, its a list of sums of pointwise multiplies *)
 }
 
@@ -122,23 +141,24 @@ type blas_expr =
 let rec update blas_expr ~index ~value =
 
   match blas_expr with
-
   | Dot {xs; ys; result} -> (
       match result with
       | Some prev ->
         let xs_at_i = xs |> Zipper.jump_to ~index in
         let x0 = xs_at_i |> Zipper.get in
-        let y0 = ys.(index) in
+        let ys_at_i = ys |> Zipper.jump_to ~index in
+        let y0 = ys_at_i |> Zipper.get in
         let result = Some (prev +. y0 *. (value -. x0)) in
         Dot {
           xs=xs_at_i |> Zipper.set ~value;
-          ys;
+          ys=ys_at_i;
           result;
         }
       | None ->
         let xarr = xs |> Zipper.to_array in
+        let yarr = ys |> Zipper.to_array in
         let result = Some (
-            ys
+            yarr
             |> Array.map2 (fun x y -> x *. y) xarr
             |> Array.fold_left (fun acc v -> acc +. v) 0.
           ) in
