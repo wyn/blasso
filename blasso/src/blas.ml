@@ -10,6 +10,7 @@
 
 module Z = Zipper
 
+(* X corresponds to the first coordinate, Y the second, Z the third *)
 type coord = | X | Y | Z
 
 module Dot_data = struct
@@ -23,7 +24,7 @@ module Dot_data = struct
     result_: output option;
   }
 
-  let init ?xarr:(xarr=None) ?yarr:(yarr=None) = {
+  let init ~xarr ~yarr = {
     xs_=xarr |> Option.map (Z.of_array ~index:0);
     ys_=yarr |> Option.map (Z.of_array ~index:0);
     result_=None;
@@ -88,7 +89,7 @@ module Swap_data = struct
     result_: output option;
   }
 
-  let init ?xarr:(xarr=None) ?yarr:(yarr=None) = {
+  let init ~xarr ~yarr = {
     xs_=xarr |> Option.map (Z.of_array ~index:0);
     ys_=yarr |> Option.map (Z.of_array ~index:0);
     result_=None;
@@ -158,18 +159,11 @@ module Scale_data = struct
     result_: output option;
   }
 
-  let init ?arr:(arr=None) ~alpha =
-    match arr with
-    | Some xs -> {
-        xs_=Some (xs |> Z.of_array ~index:0);
-        alpha_=alpha;
-        result_=None;
-      }
-    | None -> {
-        xs_=None;
-        alpha_=alpha;
-        result_=None
-      }
+  let init ~xarr ~alpha = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
+    alpha_=alpha;
+    result_=None;
+  }
 
   let result t = t.result_
 
@@ -212,8 +206,8 @@ module Copy_data = struct
     result_: output option;
   }
 
-  let init ?arr:(arr=None) = {
-    xs_=arr |> Option.map (Z.of_array ~index:0);
+  let init ~xarr = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
     result_=None;
   }
 
@@ -262,10 +256,11 @@ let update blas_expr ~index ~value ~coord =
   | Scale data -> Scale (Scale_data.update data ~index ~value ~coord)
   | Copy data -> Copy (Copy_data.update data ~index ~value ~coord)
 
+
 (* rotg - setup and doing
  * max index
  * sum abs
- * norm - sqrt (sum (xi**2)) /n ?
+ * norm - sqrt (sum (xi**2)) /n ? -> sum (xi**2)
  * axpy
  *  *)
 

@@ -7,8 +7,9 @@ let _ =
   let s0 = 570. in
   let index = 4 in
   let value = x1.(index) in
-  let d0 = B.Dot (B.Dot_data.init x0 y0) in
-  let d1 = B.update d0 ~index ~value in
+  let coord = B.X in
+  let d0 = B.Dot (B.Dot_data.init ~xarr:(Some x0) ~yarr:(Some y0)) in
+  let d1 = B.update d0 ~index ~value ~coord in
   let s1 = match d1 with
     | B.Dot dot_data ->
       B.Dot_data.result dot_data
