@@ -13,6 +13,109 @@ module Z = Zipper
 (* X corresponds to the first coordinate, Y the second, Z the third *)
 type coord = | X | Y | Z
 
+module One_dim = struct
+
+  type input = Z.t
+  type output = Z.t
+  type t = {
+    xs_: input option;
+    result_: output option;
+    coord_: coord;
+  }
+
+  let init ?coord:(coord=X) ~xarr = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
+    result_=None;
+    coord_=coord;
+  }
+
+  let result t = t.result_
+
+  let is_ready t = result t |> Option.is_some
+
+  let rec update ({xs_; result_; coord_} as t) ~index ~value ~coord =
+    match (xs_, result_) with
+    | (Some xs, Some prev) -> (
+        match (coord_, coord) with
+        | (X, X) | (Y, Y) | (Z, Z) ->
+          let xs_ = Some (xs
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+          in
+          let result_ = Some (prev
+                              |> Z.jump_to ~index
+                              |> Z.set ~value)
+          in
+          {xs_; result_; coord_}
+        | _ -> t
+      )
+    | (Some xs, None) ->
+      let result_ = Some (xs
+                          |> Z.to_array
+                          |> Z.of_array ~index)
+      in
+      update {xs_; result_; coord_} ~index ~value ~coord
+    | (None, _) -> t
+
+end
+
+
+module Copy_data = struct
+
+  include One_dim
+
+end
+
+
+module Scale_data = struct
+
+  type input = Z.t
+  type output = Z.t
+
+  type t = {
+    xs_: input option;
+    alpha_: float;
+    result_: output option;
+  }
+
+  let init ~xarr ~alpha = {
+    xs_=xarr |> Option.map (Z.of_array ~index:0);
+    alpha_=alpha;
+    result_=None;
+  }
+
+  let result t = t.result_
+
+  let is_ready t = result t |> Option.is_some
+
+  let rec update ({xs_; alpha_; result_} as t) ~index ~value ~coord =
+    match (xs_, result_) with
+    | (Some xs, Some prev) -> (
+        match coord with
+        | X ->
+          let xs_ = Some (xs
+                          |> Z.jump_to ~index
+                          |> Z.set ~value)
+          in
+          let chc_at_i = prev |> Z.jump_to ~index in
+          let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
+          {xs_; alpha_; result_}
+        | Y | Z -> t
+      )
+
+    | (Some xs, None) ->
+      let result_ = Some (xs
+                          |> Z.to_array
+                          |> Array.map (fun x -> x *. alpha_)
+                          |> Z.of_array ~index)
+      in
+      update {xs_; alpha_; result_} ~index ~value ~coord
+
+    | (None, _) -> t
+
+end
+
+
 module Dot_data = struct
 
   type input = Z.t
@@ -148,116 +251,45 @@ module Swap_data = struct
 
 end
 
-module Scale_data = struct
 
-  type input = Z.t
-  type output = Z.t
-
-  type t = {
-    xs_: input option;
-    alpha_: float;
-    result_: output option;
-  }
-
-  let init ~xarr ~alpha = {
-    xs_=xarr |> Option.map (Z.of_array ~index:0);
-    alpha_=alpha;
-    result_=None;
-  }
-
-  let result t = t.result_
-
-  let is_ready t = result t |> Option.is_some
-
-  let rec update ({xs_; alpha_; result_} as t) ~index ~value ~coord =
-    match (xs_, result_) with
-    | (Some xs, Some prev) -> (
-        match coord with
-        | X ->
-          let xs_ = Some (xs
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let chc_at_i = prev |> Z.jump_to ~index in
-          let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
-          {xs_; alpha_; result_}
-        | Y | Z -> t
-      )
-
-    | (Some xs, None) ->
-      let result_ = Some (xs
-                          |> Z.to_array
-                          |> Array.map (fun x -> x *. alpha_)
-                          |> Z.of_array ~index)
-      in
-      update {xs_; alpha_; result_} ~index ~value ~coord
-
-    | (None, _) -> t
-
-end
-
-module Copy_data = struct
-
-  type input = Z.t
-  type output = Z.t
-
-  type t = {
-    xs_: input option;
-    result_: output option;
-  }
-
-  let init ~xarr = {
-    xs_=xarr |> Option.map (Z.of_array ~index:0);
-    result_=None;
-  }
-
-  let result t = t.result_
-
-  let is_ready t = result t |> Option.is_some
-
-  let rec update ({xs_; result_}as t) ~index ~value ~coord =
-    match (xs_, result_) with
-    | (Some xs, Some prev) -> (
-        match coord with
-        | X ->
-          let xs_ = Some (xs
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let result_ = Some (prev
-                              |> Z.jump_to ~index
-                              |> Z.set ~value)
-          in
-          {xs_; result_}
-        | Y | Z -> t
-      )
-    | (Some xs, None) ->
-      let result_ = Some (xs
-                          |> Z.to_array
-                          |> Z.of_array ~index)
-      in
-      update {xs_; result_} ~index ~value ~coord
-    | (None, _) -> t
-
-end
-
-type blas_expr =
+type blas_expr_xy =
   | Dot of Dot_data.t
   | Swap of Swap_data.t
+
+type blas_expr_x =
   | Scale of Scale_data.t
   | Copy of Copy_data.t
 
+
+module type Blas_data = sig
+  type input
+  type output
+  type t
+
+  val result: t -> output
+
+  val is_ready: t -> bool
+
+  val update: t -> index:int -> value:float -> coord:coord -> t
+
+end
+
+module Node (N : Blas_data) = struct
+
+
+
+end
 (* some comments *)
 
-let update blas_expr ~index ~value ~coord =
-  match blas_expr with
-  | Dot data -> Dot (Dot_data.update data ~index ~value ~coord)
-  | Swap data -> Swap (Swap_data.update data ~index ~value ~coord)
-  | Scale data -> Scale (Scale_data.update data ~index ~value ~coord)
-  | Copy data -> Copy (Copy_data.update data ~index ~value ~coord)
+(* let update blas_expr ~index ~value ~coord =
+ *   match blas_expr with
+ *   | Dot data -> Dot (Dot_data.update data ~index ~value ~coord)
+ *   | Swap data -> Swap (Swap_data.update data ~index ~value ~coord)
+ *   | Scale data -> Scale (Scale_data.update data ~index ~value ~coord)
+ *   | Copy data -> Copy (Copy_data.update data ~index ~value ~coord) *)
 
 
-(* rotg - setup and doing
+(* rot/rotg - setup and doing
  * max index
  * sum abs
  * norm - sqrt (sum (xi**2)) /n ? -> sum (xi**2)
