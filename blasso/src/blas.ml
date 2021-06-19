@@ -13,6 +13,21 @@ module Z = Zipper
 (* X corresponds to the first coordinate, Y the second, Z the third *)
 type coord = | X | Y | Z
 
+module type Blas_data = sig
+  type input
+  type output
+  type t
+
+  val init: ?coord:coord -> xarr:float array -> t
+
+  val result: t -> float array option
+
+  val hash: t -> int
+
+  val update: t -> index:int -> value:float -> coord:coord -> t
+
+end
+
 module One_dim = struct
 
   type input = Z.t
@@ -21,19 +36,22 @@ module One_dim = struct
     xs_: input option;
     result_: output option;
     coord_: coord;
+    hash_: int;
   }
 
-  let init ?coord:(coord=X) ~xarr = {
-    xs_=xarr |> Option.map (Z.of_array ~index:0);
-    result_=None;
-    coord_=coord;
-  }
+  let init ?coord:(coord=X) ~xarr =
+    let xs = xarr |> (Z.of_array ~index:0) in {
+      xs_=Some xs;
+      result_=None;
+      coord_=coord;
+      hash_=Z.hash xs;
+    }
 
-  let result t = t.result_
+  let result t = t.result_ |> Option.map Z.to_array
 
-  let is_ready t = result t |> Option.is_some
+  let hash t = t.hash_
 
-  let rec update ({xs_; result_; coord_} as t) ~index ~value ~coord =
+  let rec update ({xs_; result_; coord_; hash_} as t) ~index ~value ~coord =
     match (xs_, result_) with
     | (Some xs, Some prev) -> (
         match (coord_, coord) with
@@ -42,11 +60,12 @@ module One_dim = struct
                           |> Z.jump_to ~index
                           |> Z.set ~value)
           in
-          let result_ = Some (prev
-                              |> Z.jump_to ~index
-                              |> Z.set ~value)
+          let result = prev
+                       |> Z.jump_to ~index
+                       |> Z.set ~value
           in
-          {xs_; result_; coord_}
+          let hash_ = Z.hash result in
+          {xs_; result_=Some result; coord_; hash_}
         | _ -> t
       )
     | (Some xs, None) ->
@@ -54,10 +73,11 @@ module One_dim = struct
                           |> Z.to_array
                           |> Z.of_array ~index)
       in
-      update {xs_; result_; coord_} ~index ~value ~coord
+      update {xs_; result_; coord_; hash_} ~index ~value ~coord
     | (None, _) -> t
 
 end
+
 
 
 module Copy_data = struct
@@ -85,8 +105,6 @@ module Scale_data = struct
   }
 
   let result t = t.result_
-
-  let is_ready t = result t |> Option.is_some
 
   let rec update ({xs_; alpha_; result_} as t) ~index ~value ~coord =
     match (xs_, result_) with
@@ -134,8 +152,6 @@ module Dot_data = struct
   }
 
   let result t = t.result_
-
-  let is_ready t = result t |> Option.is_some
 
   let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
     match (xs_, ys_, result_) with
@@ -200,8 +216,6 @@ module Swap_data = struct
 
   let result t = t.result_
 
-  let is_ready t = result t |> Option.is_some
-
   let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
     match (xs_, ys_, result_) with
     | (Some xs, Some ys, Some prev) -> (
@@ -261,24 +275,6 @@ type blas_expr_x =
   | Copy of Copy_data.t
 
 
-module type Blas_data = sig
-  type input
-  type output
-  type t
-
-  val result: t -> output
-
-  val is_ready: t -> bool
-
-  val update: t -> index:int -> value:float -> coord:coord -> t
-
-end
-
-module Node (N : Blas_data) = struct
-
-
-
-end
 (* some comments *)
 
 (* let update blas_expr ~index ~value ~coord =

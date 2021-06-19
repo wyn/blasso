@@ -95,3 +95,4 @@ ENV/
 
 # ocaml/dune
 _build/
+/current_incr/
