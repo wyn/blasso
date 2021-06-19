@@ -34,15 +34,12 @@ module One_dim = struct
 
   type t = {
     xs_: array_view;
-    hash_: int;
   }
 
   let of_zipper xs =
     let xs_=xs in
-    let hash_=Z.hash xs in
     {
       xs_;
-      hash_;
     }
 
   let of_array xarr =
@@ -50,7 +47,6 @@ module One_dim = struct
 
   let input t = t.xs_ (* |> Option.map Z.to_array *)
   let output t = t.xs_
-  let hash t = t.hash_
 
   let update ({xs_; _} as t) ~index ~value =
     let xs_at_i = xs_ |> Z.jump_to ~index in
@@ -59,10 +55,8 @@ module One_dim = struct
     | true -> t
     | false ->
       let xs_ = xs_at_i |> Z.set ~value in
-      let hash_ = Z.hash xs_ in
       {
         xs_;
-        hash_
       }
 
 end
@@ -89,7 +83,7 @@ module Scale_data = struct
 
   let link input ~alpha =
     let xs_ = input in
-    let result_ = One_dim.input input |> Z.to_array |> Array.map (fun x -> x *. alpha) |> One_dim.of_array in
+    let result_ = One_dim.input input |> Z.map ~f:(fun x -> x *. alpha) |> One_dim.of_zipper in
     {
       xs_;
       result_;
@@ -99,7 +93,6 @@ module Scale_data = struct
 
   let input t = t.xs_
   let output t = t.result_
-  let hash t = t.result_ |> One_dim.hash
 
   let update {xs_; result_; alpha_} ~index ~value =
     let xs_ = One_dim.input xs_

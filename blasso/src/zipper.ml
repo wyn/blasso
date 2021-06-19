@@ -12,15 +12,12 @@ type t = {
   right_: el list;
   index_: int;
   length_: int;
-  hash_: int;
 }
-
-let hash t = t.hash_
-let is_dirty t hsh = hsh <> hash t
 
 let of_array arr ~index =
   let n = Array.length arr in
-  let i = _clamp 0 n index in {
+  let i = _clamp 0 n index in
+  {
     left_=Array.sub arr 0 i
           |> Array.to_list
           |> List.rev;
@@ -29,7 +26,6 @@ let of_array arr ~index =
            |> Array.to_list;
     index_=i;
     length_=n;
-    hash_=arr |> Hashtbl.hash;
   }
 
 let to_array {left_; focus_; right_; _} =
@@ -42,39 +38,48 @@ let to_array {left_; focus_; right_; _} =
 
 let get t = t.focus_
 
-let set ({left_; focus_=_; right_; index_; length_; hash_=_} as t) ~value = {
-  left_;
-  focus_=value;
-  right_;
-  index_;
-  length_;
-  hash_=to_array t |> Hashtbl.hash
-}
+let set {left_; focus_=_; right_; index_; length_} ~value =
+  {
+    left_;
+    focus_=value;
+    right_;
+    index_;
+    length_;
+  }
+
+let map ~f {left_; focus_; right_; index_; length_} =
+  {
+    left_=List.map f left_;
+    focus_=f focus_;
+    right_=List.map f right_;
+    index_;
+    length_;
+  }
 
 let shift_left t =
   match t.left_ with
   | [] -> t
   | new_focus_ :: new_left_ ->
-    let new_right_ = t.focus_ :: t.right_ in {
+    let new_right_ = t.focus_ :: t.right_ in
+    {
       left_=new_left_;
       focus_=new_focus_;
       right_=new_right_;
       index_=(t.index_ - 1);
       length_=t.length_;
-      hash_=t.hash_;
     }
 
 let shift_right t =
   match t.right_ with
   | [] -> t
   | new_focus_ :: new_right_ ->
-    let new_left_ = t.focus_ :: t.left_ in {
+    let new_left_ = t.focus_ :: t.left_ in
+    {
       left_=new_left_;
       focus_=new_focus_;
       right_=new_right_;
       index_=(t.index_ + 1);
       length_=t.length_;
-      hash_=t.hash_;
     }
 
 let rec jump_to t ~index =
