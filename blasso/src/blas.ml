@@ -10,8 +10,8 @@
 
 module Z = Zipper
 
-(* X corresponds to the first coordinate, Y the second, Z the third *)
-type coord = | X | Y | Z
+(* X corresponds to the first coordinate, Y the second *)
+type coord = | X | Y
 
 module type Blas_data = sig
   type input
@@ -30,51 +30,40 @@ end
 
 module One_dim = struct
 
-  type input = Z.t
-  type output = Z.t
+  type array_view = Z.t
+
   type t = {
-    xs_: input option;
-    result_: output option;
-    coord_: coord;
+    xs_: array_view;
     hash_: int;
   }
 
-  let init ?coord:(coord=X) ~xarr =
-    let xs = xarr |> (Z.of_array ~index:0) in {
-      xs_=Some xs;
-      result_=None;
-      coord_=coord;
-      hash_=Z.hash xs;
+  let of_zipper xs =
+    let xs_=xs in
+    let hash_=Z.hash xs in
+    {
+      xs_;
+      hash_;
     }
 
-  let result t = t.result_ |> Option.map Z.to_array
+  let of_array xarr =
+    xarr |> (Z.of_array ~index:0) |> of_zipper
 
+  let input t = t.xs_ (* |> Option.map Z.to_array *)
+  let output t = t.xs_
   let hash t = t.hash_
 
-  let rec update ({xs_; result_; coord_; hash_} as t) ~index ~value ~coord =
-    match (xs_, result_) with
-    | (Some xs, Some prev) -> (
-        match (coord_, coord) with
-        | (X, X) | (Y, Y) | (Z, Z) ->
-          let xs_ = Some (xs
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let result = prev
-                       |> Z.jump_to ~index
-                       |> Z.set ~value
-          in
-          let hash_ = Z.hash result in
-          {xs_; result_=Some result; coord_; hash_}
-        | _ -> t
-      )
-    | (Some xs, None) ->
-      let result_ = Some (xs
-                          |> Z.to_array
-                          |> Z.of_array ~index)
-      in
-      update {xs_; result_; coord_; hash_} ~index ~value ~coord
-    | (None, _) -> t
+  let update ({xs_; _} as t) ~index ~value =
+    let xs_at_i = xs_ |> Z.jump_to ~index in
+    let x0 = Z.get xs_at_i in
+    match x0 == value with
+    | true -> t
+    | false ->
+      let xs_ = xs_at_i |> Z.set ~value in
+      let hash_ = Z.hash xs_ in
+      {
+        xs_;
+        hash_
+      }
 
 end
 
@@ -89,47 +78,45 @@ end
 
 module Scale_data = struct
 
-  type input = Z.t
-  type output = Z.t
+  type input = One_dim.t
+  type output = One_dim.t
 
   type t = {
-    xs_: input option;
+    xs_: input;
+    result_: output;
     alpha_: float;
-    result_: output option;
   }
 
-  let init ~xarr ~alpha = {
-    xs_=xarr |> Option.map (Z.of_array ~index:0);
-    alpha_=alpha;
-    result_=None;
-  }
+  let link input ~alpha =
+    let xs_ = input in
+    let result_ = One_dim.input input |> Z.to_array |> Array.map (fun x -> x *. alpha) |> One_dim.of_array in
+    {
+      xs_;
+      result_;
+      alpha_=alpha;
+    }
 
-  let result t = t.result_
 
-  let rec update ({xs_; alpha_; result_} as t) ~index ~value ~coord =
-    match (xs_, result_) with
-    | (Some xs, Some prev) -> (
-        match coord with
-        | X ->
-          let xs_ = Some (xs
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let chc_at_i = prev |> Z.jump_to ~index in
-          let result_ = Some (chc_at_i |> Z.set ~value:(value *. alpha_)) in
-          {xs_; alpha_; result_}
-        | Y | Z -> t
-      )
+  let input t = t.xs_
+  let output t = t.result_
+  let hash t = t.result_ |> One_dim.hash
 
-    | (Some xs, None) ->
-      let result_ = Some (xs
-                          |> Z.to_array
-                          |> Array.map (fun x -> x *. alpha_)
-                          |> Z.of_array ~index)
-      in
-      update {xs_; alpha_; result_} ~index ~value ~coord
-
-    | (None, _) -> t
+  let update {xs_; result_; alpha_} ~index ~value =
+    let xs_ = One_dim.input xs_
+              |> Z.jump_to ~index
+              |> Z.set ~value
+              |> One_dim.of_zipper
+    in
+    let result_ = One_dim.input result_
+                  |> Z.jump_to ~index
+                  |> Z.set ~value:(value *. alpha_)
+                  |> One_dim.of_zipper
+    in
+    {
+      xs_;
+      result_;
+      alpha_;
+    }
 
 end
 
@@ -171,11 +158,6 @@ module Dot_data = struct
             Some (ys_at_i |> Z.set ~value),
             Some (prev +. x0 *. (value -. y0))
           )
-        | Z -> (
-            Some xs_at_i,
-            Some ys_at_i,
-            Some prev
-          )
       in
       {xs_; ys_; result_}
 
@@ -193,96 +175,102 @@ module Dot_data = struct
 end
 
 
-module Swap_data = struct
-
-  type input = Z.t
-
-  type output = {
-    oxs_: Z.t;
-    oys_: Z.t;
-  }
-
-  type t = {
-    xs_: input option;
-    ys_: input option;
-    result_: output option;
-  }
-
-  let init ~xarr ~yarr = {
-    xs_=xarr |> Option.map (Z.of_array ~index:0);
-    ys_=yarr |> Option.map (Z.of_array ~index:0);
-    result_=None;
-  }
-
-  let result t = t.result_
-
-  let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
-    match (xs_, ys_, result_) with
-    | (Some xs, Some ys, Some prev) -> (
-        match coord with
-        | X ->
-          let xs_ = Some (xs
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let ys_ = Some (ys |> Z.jump_to ~index) in
-          let prev_oxs = prev.oxs_ |> Z.jump_to ~index in
-          let prev_oys = prev.oys_
-                         |> Z.jump_to ~index
-                         |> Z.set ~value
-          in
-          let result_ = Some {
-              oxs_=prev_oxs;
-              oys_=prev_oys;
-            } in
-          {xs_; ys_; result_}
-        | Y ->
-          let xs_ = Some (xs |> Z.jump_to ~index) in
-          let ys_ = Some (ys
-                          |> Z.jump_to ~index
-                          |> Z.set ~value)
-          in
-          let prev_oxs = prev.oxs_
-                         |> Z.jump_to ~index
-                         |> Z.set ~value
-          in
-          let prev_oys = prev.oys_ |> Z.jump_to ~index in
-          let result_ = Some {
-              oxs_=prev_oxs;
-              oys_=prev_oys;
-            } in
-          {xs_; ys_; result_}
-        | Z -> t
-      )
-    | (Some xs, Some ys, None) ->
-      let result_ = Some {
-          oxs_=ys |> Z.to_array |> Z.of_array ~index;
-          oys_=xs |> Z.to_array |> Z.of_array ~index;
-        } in
-      update {xs_; ys_; result_} ~index ~value ~coord
-
-    | (None, _, _) | (_, None, _) -> t
-
-end
-
-
-type blas_expr_xy =
-  | Dot of Dot_data.t
-  | Swap of Swap_data.t
-
-type blas_expr_x =
-  | Scale of Scale_data.t
-  | Copy of Copy_data.t
+(* module Swap_data = struct
+ *
+ *   type input = Z.t
+ *
+ *   type output = {
+ *     oxs_: Z.t;
+ *     oys_: Z.t;
+ *   }
+ *
+ *   type t = {
+ *     xs_: input option;
+ *     ys_: input option;
+ *     result_: output option;
+ *   }
+ *
+ *   let init ~xarr ~yarr = {
+ *     xs_=xarr |> Option.map (Z.of_array ~index:0);
+ *     ys_=yarr |> Option.map (Z.of_array ~index:0);
+ *     result_=None;
+ *   }
+ *
+ *   let result t = t.result_
+ *
+ *   let rec update ({xs_; ys_; result_} as t) ~index ~value ~coord =
+ *     match (xs_, ys_, result_) with
+ *     | (Some xs, Some ys, Some prev) -> begin
+ *         match coord with
+ *         | X ->
+ *           let xs_ = Some (xs
+ *                           |> Z.jump_to ~index
+ *                           |> Z.set ~value)
+ *           in
+ *           let ys_ = Some (ys |> Z.jump_to ~index) in
+ *           let prev_oxs = prev.oxs_ |> Z.jump_to ~index in
+ *           let prev_oys = prev.oys_
+ *                          |> Z.jump_to ~index
+ *                          |> Z.set ~value
+ *           in
+ *           let result_ = Some {
+ *               oxs_=prev_oxs;
+ *               oys_=prev_oys;
+ *             } in
+ *           {xs_; ys_; result_}
+ *         | Y ->
+ *           let xs_ = Some (xs |> Z.jump_to ~index) in
+ *           let ys_ = Some (ys
+ *                           |> Z.jump_to ~index
+ *                           |> Z.set ~value)
+ *           in
+ *           let prev_oxs = prev.oxs_
+ *                          |> Z.jump_to ~index
+ *                          |> Z.set ~value
+ *           in
+ *           let prev_oys = prev.oys_ |> Z.jump_to ~index in
+ *           let result_ = Some {
+ *               oxs_=prev_oxs;
+ *               oys_=prev_oys;
+ *             } in
+ *           {xs_; ys_; result_}
+ *       end
+ *
+ *     | (Some xs, Some ys, None) ->
+ *       let result_ = Some {
+ *           oxs_=ys |> Z.to_array |> Z.of_array ~index;
+ *           oys_=xs |> Z.to_array |> Z.of_array ~index;
+ *         } in
+ *       update {xs_; ys_; result_} ~index ~value ~coord
+ *
+ *     | (None, _, _) | (_, None, _) -> t
+ *
+ * end *)
 
 
-(* some comments *)
+type blas_expr =
+  (* | Scalar of Scalar.t *)
+  | Arr of One_dim.t
+  (* | Copy of blas_expr *)
+  | Scale of blas_expr
+  | Dot of blas_expr * blas_expr
+  (* | Swap of blas_expr * blas_expr *)
 
-(* let update blas_expr ~index ~value ~coord =
- *   match blas_expr with
- *   | Dot data -> Dot (Dot_data.update data ~index ~value ~coord)
- *   | Swap data -> Swap (Swap_data.update data ~index ~value ~coord)
- *   | Scale data -> Scale (Scale_data.update data ~index ~value ~coord)
- *   | Copy data -> Copy (Copy_data.update data ~index ~value ~coord) *)
+
+(* update : BEXPR -> index -> value -> coord -> BEXPR
+ * when stencilling is done index/coord will be a stencil point *)
+
+let rec update blas_expr ~index ~value =
+  match blas_expr with
+  (* | Scalar v -> Scalar.update v ~value *)
+  | Arr data -> Arr (One_dim.update data ~index ~value)
+  | Scale bexpr -> bexpr
+  (* let xs = update bexpr ~index ~value ~coord in
+   * Scale_data.update xs ~index ~value ~coord *)
+  | Dot (bexprX, _bexprY) -> bexprX
+(* let xs = update bexprX ~index ~value ~coord in
+ * let ys = update bexprY ~index ~value ~coord in
+ * Dot_data.update xs ys ~index ~value ~coord *)
 
 
 (* rot/rotg - setup and doing
