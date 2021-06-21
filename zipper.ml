@@ -14,6 +14,15 @@ type t = {
   length_: int;
 }
 
+let of_scalar ~value =
+  {
+    left_=[];
+    focus_=value;
+    right_=[];
+    index_=0;
+    length_=1;
+  }
+
 let of_array arr ~index =
   let n = Array.length arr in
   let i = _clamp 0 n index in
@@ -54,6 +63,15 @@ let map ~f {left_; focus_; right_; index_; length_} =
     right_=List.map f right_;
     index_;
     length_;
+  }
+
+let map2 ~f z1 z2 =
+  {
+    left_=List.map2 f z1.left_ z2.left_;
+    focus_=f z1.focus_ z2.focus_;
+    right_=List.map2 f z1.right_ z2.right_;
+    index_=z1.index_;
+    length_=z1.length_;
   }
 
 let shift_left t =

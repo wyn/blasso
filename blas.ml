@@ -83,7 +83,9 @@ module Scale_data = struct
 
   let link input ~alpha =
     let xs_ = input in
-    let result_ = One_dim.input input |> Z.map ~f:(fun x -> x *. alpha) |> One_dim.of_zipper in
+    let result_ = One_dim.input input
+                  |> Z.map ~f:(fun x -> x *. alpha)
+                  |> One_dim.of_zipper in
     {
       xs_;
       result_;
@@ -240,6 +242,7 @@ end
  *
  * end *)
 
+let xs = [||] |> One_dim.of_array |> Scale_data.link ~alpha:0.1 ;;
 
 type blas_expr =
   (* | Scalar of Scalar.t *)
@@ -253,14 +256,14 @@ type blas_expr =
 (* update : BEXPR -> index -> value -> coord -> BEXPR
  * when stencilling is done index/coord will be a stencil point *)
 
-let rec update blas_expr ~index ~value =
-  match blas_expr with
-  (* | Scalar v -> Scalar.update v ~value *)
-  | Arr data -> Arr (One_dim.update data ~index ~value)
-  | Scale bexpr -> bexpr
-  (* let xs = update bexpr ~index ~value ~coord in
-   * Scale_data.update xs ~index ~value ~coord *)
-  | Dot (bexprX, _bexprY) -> bexprX
+(* let rec update blas_expr ~index ~value =
+ *   match blas_expr with
+ *   (\* | Scalar v -> Scalar.update v ~value *\)
+ *   | Arr data -> Arr (One_dim.update data ~index ~value)
+ *   | Scale bexpr ->
+ *     let xs = update bexpr ~index ~value in
+ *     Scale_data.update xs ~index ~value
+ *   | Dot (bexprX, _bexprY) -> bexprX *)
 (* let xs = update bexprX ~index ~value ~coord in
  * let ys = update bexprY ~index ~value ~coord in
  * Dot_data.update xs ys ~index ~value ~coord *)
