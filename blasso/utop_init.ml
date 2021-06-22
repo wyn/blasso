@@ -10,6 +10,7 @@ let index = 4;;
 let value = x1.(index);;
 
 let res =
+  (* 1. +. 2. +. 3. = 6. *)
   let xs = [|1.; -2.; 3.;|] in
   let u0 = B.Abs_sum.make 3 in
   let u1 =
@@ -17,8 +18,8 @@ let res =
     |> B.Abs_sum_updater.update ~stencil:{coord=X; index=1; value=30.0} (* 1. +. 30. +. 3.  = 34. *)
     |> B.Abs_sum_updater.update ~stencil:{coord=Y; index=2; value=(-3.0)} in
   let u2 =
-    u0
+    u1
     |> B.Abs_sum_updater.update ~stencil:{coord=Y; index=2; value=(-3.0)}
-    |> B.Abs_sum_updater.update ~stencil:{coord=X; index=0; value=20.0} in (* 20. +. 2. +. 3. = 25. *)
-  u0.calc xs, u1.calc xs, u2.calc xs
+    |> B.Abs_sum_updater.update ~stencil:{coord=X; index=0; value=20.0} in (* 20. +. 30. +. 3. = 25. *)
+  u0.calc xs, u1.calc xs, u2.calc xs, xs
 ;;
