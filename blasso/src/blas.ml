@@ -38,6 +38,8 @@ module Abs_sum = struct
             coord: coord;
            }
 
+  let current t = !(t.cache)
+
   let dasum xs ~n ~incx =
     let dtemp = ref 0. in
     let helper () =
@@ -52,39 +54,13 @@ module Abs_sum = struct
       !dtemp
     )
 
-  let make ?coord:(coord=X) ?incx:(incx=1) n =
-    let calc = fun xs -> dasum xs ~n ~incx in
-    let cache = ref None in
-    {
-      calc;
-      cache;
-      coord;
-    }
-
-  let update_with t ~calc = {calc; cache=t.cache; coord=t.coord}
-
-  let current t = !(t.cache)
-
-end
-
-(* NOTE usage:
- *  Abs_sum.make ~coord:X 10
- *  |> Abs_sum_updater.update ~stencil:{X 3 32.0}
- *  |> Ans_sum_updater.update ~stencil:{Y 5 0.0}
- *
- *  *)
-
-module Abs_sum_updater = struct
-
-  type t = Abs_sum.t
-
-  let dasum_updater (abs_sum:Abs_sum.t) {coord; index; value} =
+  let dasum_updater t {coord; index; value} =
     fun xs -> begin
-        let current = match Abs_sum.current abs_sum with
+        let current = match current t with
           | Some v -> v
-          | None -> abs_sum.calc xs (* NOTE could hold off calculating this until coord==coord ? *)
+          | None -> t.calc xs (* NOTE could hold off calculating this until coord==coord ? *)
         in
-        match (coord == abs_sum.coord) with
+        match (coord == t.coord) with
         | false -> current (* this array hasnt changed *)
         | true ->
           (* NOTE probably can just check abs x0 == abs value *)
@@ -94,27 +70,32 @@ module Abs_sum_updater = struct
           | false ->
             (* fast update of result and cache *)
             let new_val = current -. abs_float x0 +. abs_float value in
-            let () = abs_sum.cache := Some new_val in
+            let () = t.cache := Some new_val in
+            let () = xs.(index) <- value in
             new_val
       end
 
+  let make ?coord:(coord=X) ?incx:(incx=1) n =
+    let calc = fun xs -> dasum xs ~n ~incx in
+    let cache = ref None in
+    {
+      calc;
+      cache;
+      coord;
+    }
+
   let update t ~stencil =
     let calc = dasum_updater t stencil in
-    t |> Abs_sum.update_with ~calc
-
+    { t with calc }
 
 end
 
-let r1, r2 =
-  let xs = [|1.; -2.; 3.;|] in
-  let u0 = Abs_sum.make 3 in
-  let u1 =
-    let stencil = {coord=X;
-                   index=1;
-                   value=30.0} in
-    u0 |> Abs_sum_updater.update ~stencil
-  in u0.calc xs, u1.calc xs
-;;
+(* NOTE usage:
+ *  Abs_sum.make ~coord:X 10
+ *  |> Abs_sum_updater.update ~stencil:{X 3 32.0}
+ *  |> Ans_sum_updater.update ~stencil:{Y 5 0.0}
+ *
+ *  *)
 
 (* module Z = Zipper
  *

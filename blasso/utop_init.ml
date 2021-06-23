@@ -15,11 +15,11 @@ let res =
   let u0 = B.Abs_sum.make 3 in
   let u1 =
     u0
-    |> B.Abs_sum_updater.update ~stencil:{coord=X; index=1; value=30.0} (* 1. +. 30. +. 3.  = 34. *)
-    |> B.Abs_sum_updater.update ~stencil:{coord=Y; index=2; value=(-3.0)} in
+    |> B.Abs_sum.update ~stencil:{coord=X; index=1; value=30.0} (* 1. +. 30. +. 3.  = 34. *)
+    |> B.Abs_sum.update ~stencil:{coord=Y; index=2; value=(-3.0)} in
   let u2 =
     u1
-    |> B.Abs_sum_updater.update ~stencil:{coord=Y; index=2; value=(-3.0)}
-    |> B.Abs_sum_updater.update ~stencil:{coord=X; index=0; value=20.0} in (* 20. +. 30. +. 3. = 25. *)
+    |> B.Abs_sum.update ~stencil:{coord=Y; index=2; value=(-3.0)}
+    |> B.Abs_sum.update ~stencil:{coord=X; index=0; value=20.0} in (* 20. +. 30. +. 3. = 25. *)
   u0.calc xs, u1.calc xs, u2.calc xs, xs
 ;;
