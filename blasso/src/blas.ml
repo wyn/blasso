@@ -63,12 +63,12 @@ module Abs_sum = struct
         match (coord == t.coord) with
         | false -> current (* this array hasnt changed *)
         | true ->
-          (* NOTE probably can just check abs x0 == abs value *)
+          (* NOTE probably can just check abs x0 == abs value but then would always need to update xs *)
           let x0 = xs.(index) in
           match x0 == value with
           | true -> current
           | false ->
-            (* fast update of result and cache *)
+            (* fast update of array and cache *)
             let new_val = current -. abs_float x0 +. abs_float value in
             let () = t.cache := Some new_val in
             let () = xs.(index) <- value in
