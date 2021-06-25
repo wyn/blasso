@@ -13,6 +13,7 @@ type state = | CLEAN | DIRTY | NOT_INITIALISED
  * uptream reads have to be done with clean stencils
  * upstream writes are not allowed
  * if a stencil is dirty it will update itself first *)
+(* NOTE not sure we need this *)
 type role = | READ | WRITE
 
 type axis = | ROW | COL
@@ -45,7 +46,7 @@ module Point = struct
     col=Coord.c ~j;
   }
 
-  let hash {row; col} = Coord.hash row + Coord.hash col
+  let hash {row; col} = Coord.(hash row + hash col)
 
 end
 
@@ -69,6 +70,10 @@ module type STENCIL = sig
   val write : t -> p:Point.t -> value:float -> unit
   val write_first : t -> value:float -> unit (* NOTE for scalars, dont need to know where the scalar is - will be something like [| 00000 1 0000...000 |] *)
 
+  val hash : t -> int
+  val (=) : t -> t -> bool
+  val is_compatible : t -> t -> bool
+
   (* something will need to manage stencils' IDs and also
    *  - a parent - the immediate upstream obj it is a view of
    *  - the id of the data it ultimately is a view of
@@ -88,18 +93,18 @@ module type STENCIL = sig
    *  data_id is still id of data
    *
    *  *)
-  val hash : t -> int
+  (* NOTE not sure we need parent and data ids *)
   val id : t -> int
   val parent_id : t -> int
   val data_id : t -> int
-  val (=) : t -> t -> bool
-  val is_compatible : t -> t -> bool
 
   val rows: t -> int
   val cols: t -> int
   val elements: t -> int
+  (* what is my state with respect to an output *)
   val state : t -> wrt:int -> state
   val mark_dirty : t -> t
+  (* mark me clean with respect to an output *)
   val mark_clean : t -> wrt:int -> t
 
   (* these getters return stencils that allow one to get at a value *)
@@ -164,16 +169,29 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     alpha: ST.t;
   }
 
+  let _OP_NAME = "SCALE"
+  let _VAR_X = {op=_OP_NAME; arg="X"}
+  let _VAR_ALPHA = {op=_OP_NAME; arg="ALPHA"}
+
   (* DSCAL(n, alpha, xs, incx) -> () *)
   let make ~context ~names =
-    let x_id = Hashtbl.find names {op="SCALE"; arg="X"} in
+    let x_id = Hashtbl.find names _VAR_X in
     let x = Hashtbl.find context x_id in
-    let _ = if ST.is_empty x then failwith "Empty stencil found for variable 'X' in operation 'SCALE'" else () in
+    let _ = if ST.is_empty x then
+        failwith @@ Printf.sprintf "Empty stencil found for variable '%s' in operation '%s'" _VAR_X.arg _VAR_X.op
+      else ()
+    in
 
-    let alpha_id = Hashtbl.find names {op="SCALE"; arg="ALPHA"} in
+    let alpha_id = Hashtbl.find names _VAR_ALPHA in
     let alpha = Hashtbl.find context alpha_id in
-    let _ = if ST.is_empty alpha then failwith "Empty stencil found for variable 'ALPHA' in operation 'SCALE'" else () in
-    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for variable 'ALPHA' in operation 'SCALE'" in
+    let _ = if ST.is_empty alpha then
+        failwith @@ Printf.sprintf "Empty stencil found for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+      else ()
+    in
+    let _ = if ST.is_scalar alpha
+      then ()
+      else failwith @@ Printf.sprintf "Expected scalar stencil for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+    in
 
     let io: IO.t = {input=x; output=x} in
 
@@ -211,7 +229,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
                 ST.write dirty_output ~p:point ~value:new_scaled_value
             ) in
           {t with io}
-        | NOT_INITIALISED -> failwith "Not initialised - Scale cannot continue"
+        | NOT_INITIALISED ->
+          failwith @@ Printf.sprintf "Not initialised - '%s' cannot continue" _OP_NAME
       end
 
     (* not taking part in this update*)
