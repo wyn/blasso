@@ -114,7 +114,11 @@ end
 
 module type BLAS_OP = sig
 
+  type stencil
+
   type t
+
+  val (>>) : stencil -> stencil -> kwargs:(string, float) Hashtbl.t -> t
 
   val full_calc : t -> t
 
@@ -138,7 +142,7 @@ module INOUT (ST: STENCIL) = struct
 end
 
 
-module Scale (ST: STENCIL): BLAS_OP = struct
+module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
   module IO = struct include INOUT(ST) end
 
@@ -147,13 +151,16 @@ module Scale (ST: STENCIL): BLAS_OP = struct
     alpha: float;
   }
 
+  let (>>) input output ~kwargs = { io={input; output}; alpha=Hashtbl.find kwargs "alpha"}
+
   let full_calc t =
     match ST.state t.io.input ~wrt:(ST.id t.io.output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
       let io = IO.wrapped_action t.io ~f:(
           fun dirty_output ->
-            t.io.input |> ST.iter ~f:(fun x p -> dirty_output |> ST.write ~p ~value:(t.alpha  *. x))
+            let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(t.alpha  *. x) in
+            t.io.input |> ST.iter ~f:scale_by_alpha
         ) in
       {t with io}
 
