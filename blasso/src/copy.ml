@@ -38,15 +38,17 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       else ()
     in
     let n = ST.elements x in
-    let io: IO.t = {input=x; output=y} in
     let point_map = Hashtbl.create n in
+    let f = fun _ px py ->
+      Hashtbl.add point_map px py
+    in
+    let io: IO.t = {input=x; output=y} in
+    let () = io.input |> ST.iter_zip io.output ~f in
     {io; point_map}
 
   let full_calc t =
-    let () = Hashtbl.clear t.point_map in
     let f = fun dirty_output ->
-      let copy_x_to_y = fun x px py ->
-        let () = Hashtbl.add t.point_map px py in
+      let copy_x_to_y = fun x _ py ->
         dirty_output |> ST.write ~p:py ~value:x
       in
       t.io.input |> ST.iter_zip dirty_output ~f:copy_x_to_y
@@ -58,6 +60,7 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   let update t point =
     let f = fun dirty_output ->
       let value = ST.read t.io.input ~p:point in
+      (* NOTE f is invoked after checking points exist in stencil *)
       let p = Hashtbl.find t.point_map point in
       ST.write dirty_output ~p ~value
     in
