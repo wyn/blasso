@@ -65,6 +65,7 @@ module type STENCIL = sig
 
   val reset_data : t -> data:(float array array) -> t
   val read : t -> p:Point.t -> float
+  val read_first : t -> float
   val write : t -> p:Point.t -> value:float -> unit
 
   (* something will need to manage stencils' IDs and also
@@ -118,7 +119,7 @@ module type BLAS_OP = sig
 
   type t
 
-  val (>>) : stencil -> stencil -> kwargs:(string, float) Hashtbl.t -> t
+  val make : context:((string, stencil) Hashtbl.t) -> names:((string, string) Hashtbl.t) -> t
 
   val full_calc : t -> t
 
@@ -127,7 +128,7 @@ module type BLAS_OP = sig
 end
 
 
-module INOUT (ST: STENCIL) = struct
+module InOut (ST: STENCIL) = struct
   type t = {
     input: ST.t;
     output: ST.t;
@@ -144,14 +145,24 @@ end
 
 module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
-  module IO = struct include INOUT(ST) end
+  module IO = struct include InOut(ST) end
 
   type t = {
     io: IO.t;
-    alpha: float;
+    alpha: ST.t;
   }
 
-  let (>>) input output ~kwargs = { io={input; output}; alpha=Hashtbl.find kwargs "alpha"}
+  (* DSCAL(n, alpha, xs, incx) -> () *)
+  let make ~context ~names =
+    let x_name = Hashtbl.find names "X" in
+    let x = Hashtbl.find context x_name in
+
+    let alpha_name = Hashtbl.find names "alpha" in
+    let alpha = Hashtbl.find context alpha_name in
+
+    let io: IO.t = {input=x; output=x} in
+
+    {io; alpha}
 
   let full_calc t =
     match ST.state t.io.input ~wrt:(ST.id t.io.output) with
@@ -159,7 +170,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     | DIRTY | NOT_INITIALISED ->
       let io = IO.wrapped_action t.io ~f:(
           fun dirty_output ->
-            let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(t.alpha  *. x) in
+            let alpha = ST.read_first t.alpha in
+            let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
             t.io.input |> ST.iter ~f:scale_by_alpha
         ) in
       {t with io}
@@ -179,7 +191,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
           let io = IO.wrapped_action t.io ~f:(
               fun dirty_output ->
                 let value = ST.read t.io.input ~p:point in
-                let new_scaled_value = t.alpha *. value in
+                let alpha = ST.read_first t.alpha in
+                let new_scaled_value = alpha *. value in
                 ST.write dirty_output ~p:point ~value:new_scaled_value
             ) in
           {t with io}
