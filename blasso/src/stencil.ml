@@ -108,6 +108,11 @@ module type STENCIL = sig
   val get : t -> p:Point.t -> t
   val mem : t -> p:Point.t -> bool
 
+  val is_empty : t -> bool
+  val is_scalar : t -> bool
+  val is_row : t -> bool
+  val is_col : t -> bool
+
   val iter : t -> f:('a -> Point.t -> unit) -> unit
 
 end
@@ -156,9 +161,12 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   let make ~context ~names =
     let x_name = Hashtbl.find names "X" in
     let x = Hashtbl.find context x_name in
+    let _ = if ST.is_empty x then failwith "Empty stencil found for X in Scale" else () in
 
     let alpha_name = Hashtbl.find names "alpha" in
     let alpha = Hashtbl.find context alpha_name in
+    let _ = if ST.is_empty alpha then failwith "Empty stencil found for alpha in Scale" else () in
+    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for alpha in Scale" in
 
     let io: IO.t = {input=x; output=x} in
 
