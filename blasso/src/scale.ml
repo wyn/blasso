@@ -31,9 +31,9 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
         failwith @@ Printf.sprintf "Empty stencil found for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
       else ()
     in
-    let _ = if ST.is_scalar alpha
-      then ()
-      else failwith @@ Printf.sprintf "Expected scalar stencil for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+    let _ = if not @@ ST.is_scalar alpha then
+        failwith @@ Printf.sprintf "Expected scalar stencil for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+      else ()
     in
 
     let io: IO.t = {input=x; output=x} in
