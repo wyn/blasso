@@ -107,7 +107,7 @@ module type STENCIL = sig
   val get : t -> p:Point.t -> t
   val mem : t -> p:Point.t -> bool
 
-  val iter : t -> f:(float -> float) -> output:t -> unit
+  val iter : t -> f:('a -> Point.t -> unit) -> unit
 
 end
 
@@ -123,45 +123,65 @@ module type BLAS_OP = sig
 end
 
 
-module Scale (ST: STENCIL): BLAS_OP = struct
-
+module INOUT (ST: STENCIL) = struct
   type t = {
     input: ST.t;
     output: ST.t;
+  }
+
+  let wrapped_action {input; output} ~f =
+    let dirty_output = ST.mark_dirty output in
+    let () = f dirty_output in
+    let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
+    {input=clean_input; output=dirty_output}
+
+end
+
+
+module Scale (ST: STENCIL): BLAS_OP = struct
+
+  module IO = struct include INOUT(ST) end
+
+  type t = {
+    io: IO.t;
     alpha: float;
   }
 
   let full_calc t =
-    match ST.state t.input ~wrt:(ST.id t.output) with
+    match ST.state t.io.input ~wrt:(ST.id t.io.output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
-      let dirty_output = ST.mark_dirty t.output in
-      let () = t.input |> ST.iter ~f:(fun x -> t.alpha  *. x) ~output:dirty_output in
-      let clean_input = ST.mark_clean t.input ~wrt:(ST.id dirty_output) in
-      {t with input=clean_input; output=dirty_output}
+      let io = IO.wrapped_action t.io ~f:(
+          fun dirty_output ->
+            t.io.input |> ST.iter ~f:(fun x p -> dirty_output |> ST.write ~p ~value:(t.alpha  *. x))
+        ) in
+      {t with io}
 
   let update t point =
-    let has_input = ST.mem t.input ~p:point in
-    let has_output = ST.mem t.output ~p:point in
+    let has_input = ST.mem t.io.input ~p:point in
+    let has_output = ST.mem t.io.output ~p:point in
     match (has_input, has_output) with
     | (true, true) -> begin
-        let dirty_output = ST.mark_dirty t.output in
         (* if input is DIRTY with respect to our output
          * then we need to update output and mark whole output as DIRTY
          * and also set input with respect to this output as clean
          * *)
-        match ST.state t.input ~wrt:(ST.id dirty_output) with
+        match ST.state t.io.input ~wrt:(ST.id t.io.output) with
         | CLEAN -> t
         | DIRTY ->
-          let value = ST.read t.input ~p:point in
-          let new_scaled_value = t.alpha *. value in
-          let () = ST.write dirty_output ~p:point ~value:new_scaled_value in
-          let clean_input = ST.mark_clean t.input ~wrt:(ST.id dirty_output) in
-          {t with input=clean_input; output=dirty_output}
+          let io = IO.wrapped_action t.io ~f:(
+              fun dirty_output ->
+                let value = ST.read t.io.input ~p:point in
+                let new_scaled_value = t.alpha *. value in
+                ST.write dirty_output ~p:point ~value:new_scaled_value
+            ) in
+          {t with io}
         | NOT_INITIALISED -> failwith "Not initialised - Scale cannot continue"
       end
 
     (* not taking part in this update*)
-    | _ -> { t with input=ST.mark_clean t.input ~wrt:(ST.id t.output) }
+    | _ ->
+      let io = {t.io with input=ST.mark_clean t.io.input ~wrt:(ST.id t.io.output)} in
+      {t with io}
 
 end
