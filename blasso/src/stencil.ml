@@ -119,13 +119,18 @@ module type STENCIL = sig
 end
 
 
+type stencil_id = string
+type 'stencil context = (stencil_id, 'stencil) Hashtbl.t
+type op_arg = {op: string; arg: string;}
+type names = (op_arg, stencil_id) Hashtbl.t
+
 module type BLAS_OP = sig
 
   type stencil
 
   type t
 
-  val make : context:((string, stencil) Hashtbl.t) -> names:((string, string) Hashtbl.t) -> t
+  val make : context:stencil context -> names:names -> t
 
   val full_calc : t -> t
 
@@ -134,7 +139,7 @@ module type BLAS_OP = sig
 end
 
 
-module Daiper (ST: STENCIL) = struct
+module IO_ (ST: STENCIL) = struct
   type t = {
     input: ST.t;
     output: ST.t;
@@ -152,25 +157,25 @@ end
 (* DSCAL equivalent reads/writes to same array *)
 module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
-  module D = struct include Daiper(ST) end
+  module IO = struct include IO_(ST) end
 
   type t = {
-    io: D.t;
+    io: IO.t;
     alpha: ST.t;
   }
 
   (* DSCAL(n, alpha, xs, incx) -> () *)
   let make ~context ~names =
-    let x_name = Hashtbl.find names "X" in
-    let x = Hashtbl.find context x_name in
-    let _ = if ST.is_empty x then failwith "Empty stencil found for variable 'X' in operation 'Scale'" else () in
+    let x_id = Hashtbl.find names {op="SCALE"; arg="X"} in
+    let x = Hashtbl.find context x_id in
+    let _ = if ST.is_empty x then failwith "Empty stencil found for variable 'X' in operation 'SCALE'" else () in
 
-    let alpha_name = Hashtbl.find names "alpha" in
-    let alpha = Hashtbl.find context alpha_name in
-    let _ = if ST.is_empty alpha then failwith "Empty stencil found for variable 'alpha' in operation 'Scale'" else () in
-    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for variable 'alpha' in operation 'Scale'" in
+    let alpha_id = Hashtbl.find names {op="SCALE"; arg="ALPHA"} in
+    let alpha = Hashtbl.find context alpha_id in
+    let _ = if ST.is_empty alpha then failwith "Empty stencil found for variable 'ALPHA' in operation 'SCALE'" else () in
+    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for variable 'ALPHA' in operation 'SCALE'" in
 
-    let io: D.t = {input=x; output=x} in
+    let io: IO.t = {input=x; output=x} in
 
     {io; alpha}
 
@@ -178,7 +183,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     match ST.state t.io.input ~wrt:(ST.id t.io.output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
-      let io = D.dirty_wrapper t.io ~f:(
+      let io = IO.dirty_wrapper t.io ~f:(
           fun dirty_output ->
             let alpha = ST.read_first t.alpha in
             let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
@@ -198,7 +203,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
         match ST.state t.io.input ~wrt:(ST.id t.io.output) with
         | CLEAN -> t
         | DIRTY ->
-          let io = D.dirty_wrapper t.io ~f:(
+          let io = IO.dirty_wrapper t.io ~f:(
               fun dirty_output ->
                 let value = ST.read t.io.input ~p:point in
                 let alpha = ST.read_first t.alpha in
