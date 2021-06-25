@@ -120,6 +120,7 @@ module type STENCIL = sig
   val is_col : t -> bool
 
   val iter : t -> f:('a -> Point.t -> unit) -> unit
+  val iter_zip : t -> t -> f:('a -> Point.t -> Point.t -> unit) -> unit
 
 end
 
@@ -128,6 +129,7 @@ type stencil_id = string
 type 'stencil context = (stencil_id, 'stencil) Hashtbl.t
 type op_arg = {op: string; arg: string;}
 type names = (op_arg, stencil_id) Hashtbl.t
+type point_map = (Point.t, Point.t) Hashtbl.t
 
 module type BLAS_OP = sig
 

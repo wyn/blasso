@@ -11,6 +11,7 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
   type t = {
     io: IO.t;
+    point_map: Stencil.point_map;
   }
 
   let _OP_NAME: Stencil.stencil_id = "COPY"
@@ -36,26 +37,32 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
         failwith @@ Printf.sprintf "Incompatible stencils '%s' and '%s in operation '%s'" _VAR_X.arg _VAR_Y.arg _OP_NAME
       else ()
     in
-
+    let n = ST.elements x in
     let io: IO.t = {input=x; output=y} in
-    {io}
+    let point_map = Hashtbl.create n in
+    {io; point_map}
 
   let full_calc t =
+    let () = Hashtbl.clear t.point_map in
     let f = fun dirty_output ->
-      let copy_x_to_y = fun x p -> dirty_output |> ST.write ~p ~value:x in
-      t.io.input |> ST.iter ~f:copy_x_to_y
+      let copy_x_to_y = fun x px py ->
+        let () = Hashtbl.add t.point_map px py in
+        dirty_output |> ST.write ~p:py ~value:x
+      in
+      t.io.input |> ST.iter_zip dirty_output ~f:copy_x_to_y
     in
 
     let io = t.io |> IO.full_calc_with ~f in
-    {io}
+    {t with io}
 
   let update t point =
     let f = fun dirty_output ->
       let value = ST.read t.io.input ~p:point in
-      ST.write dirty_output ~p:point ~value
+      let p = Hashtbl.find t.point_map point in
+      ST.write dirty_output ~p ~value
     in
     let op_name = _OP_NAME in
     let io = t.io |> IO.update_with ~f ~point ~op_name in
-    {io}
+    {t with io}
 
 end
