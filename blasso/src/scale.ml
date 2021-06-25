@@ -3,11 +3,10 @@
  *  *)
 module type STENCIL = Stencil.STENCIL
 module type BLAS_OP = Stencil.BLAS_OP
-module IO_ = Stencil.IO_
 
 module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
-  module IO = struct include IO_(ST) end
+  module IO = struct include Stencil.IO_(ST) end
 
   type t = {
     io: IO.t;
