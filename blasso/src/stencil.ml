@@ -65,8 +65,9 @@ module type STENCIL = sig
 
   val reset_data : t -> data:(float array array) -> t
   val read : t -> p:Point.t -> float
-  val read_first : t -> float
+  val read_first : t -> float (* NOTE for scalars, dont need to know where the scalar is - will be something like [| 00000 1 0000...000 |] *)
   val write : t -> p:Point.t -> value:float -> unit
+  val write_first : t -> value:float -> unit (* NOTE for scalars, dont need to know where the scalar is - will be something like [| 00000 1 0000...000 |] *)
 
   (* something will need to manage stencils' IDs and also
    *  - a parent - the immediate upstream obj it is a view of
@@ -133,13 +134,13 @@ module type BLAS_OP = sig
 end
 
 
-module InOut (ST: STENCIL) = struct
+module Daiper (ST: STENCIL) = struct
   type t = {
     input: ST.t;
     output: ST.t;
   }
 
-  let wrapped_action {input; output} ~f =
+  let dirty_wrapper {input; output} ~f =
     let dirty_output = ST.mark_dirty output in
     let () = f dirty_output in
     let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
@@ -148,12 +149,13 @@ module InOut (ST: STENCIL) = struct
 end
 
 
+(* DSCAL equivalent reads/writes to same array *)
 module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
-  module IO = struct include InOut(ST) end
+  module D = struct include Daiper(ST) end
 
   type t = {
-    io: IO.t;
+    io: D.t;
     alpha: ST.t;
   }
 
@@ -161,14 +163,14 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   let make ~context ~names =
     let x_name = Hashtbl.find names "X" in
     let x = Hashtbl.find context x_name in
-    let _ = if ST.is_empty x then failwith "Empty stencil found for X in Scale" else () in
+    let _ = if ST.is_empty x then failwith "Empty stencil found for variable 'X' in operation 'Scale'" else () in
 
     let alpha_name = Hashtbl.find names "alpha" in
     let alpha = Hashtbl.find context alpha_name in
-    let _ = if ST.is_empty alpha then failwith "Empty stencil found for alpha in Scale" else () in
-    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for alpha in Scale" in
+    let _ = if ST.is_empty alpha then failwith "Empty stencil found for variable 'alpha' in operation 'Scale'" else () in
+    let _ = if ST.is_scalar alpha then () else failwith "Expected scalar stencil for variable 'alpha' in operation 'Scale'" in
 
-    let io: IO.t = {input=x; output=x} in
+    let io: D.t = {input=x; output=x} in
 
     {io; alpha}
 
@@ -176,7 +178,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     match ST.state t.io.input ~wrt:(ST.id t.io.output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
-      let io = IO.wrapped_action t.io ~f:(
+      let io = D.dirty_wrapper t.io ~f:(
           fun dirty_output ->
             let alpha = ST.read_first t.alpha in
             let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
@@ -196,7 +198,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
         match ST.state t.io.input ~wrt:(ST.id t.io.output) with
         | CLEAN -> t
         | DIRTY ->
-          let io = IO.wrapped_action t.io ~f:(
+          let io = D.dirty_wrapper t.io ~f:(
               fun dirty_output ->
                 let value = ST.read t.io.input ~p:point in
                 let alpha = ST.read_first t.alpha in
@@ -208,8 +210,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       end
 
     (* not taking part in this update*)
-    | _ ->
-      let io = {t.io with input=ST.mark_clean t.io.input ~wrt:(ST.id t.io.output)} in
-      {t with io}
+    | _ -> t
+    (* let io = {t.io with input=ST.mark_clean t.io.input ~wrt:(ST.id t.io.output)} in
+     * {t with io} *)
 
 end
