@@ -152,7 +152,7 @@ module IO_ (ST: STENCIL) = struct
     output: ST.t;
   }
 
-  let dirty_wrapper {input; output} ~f =
+  let _dirty_wrapper {input; output} ~f =
     let dirty_output = ST.mark_dirty output in
     let () = f dirty_output in
     let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
@@ -162,11 +162,11 @@ module IO_ (ST: STENCIL) = struct
     match ST.state input ~wrt:(ST.id output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
-      dirty_wrapper t ~f
+      _dirty_wrapper t ~f
 
-  let update_with ({input; output} as t) ~f ~point ~op_name =
-    let has_input = ST.mem input ~p:point in
-    let has_output = ST.mem output ~p:point in
+  let update_with ({input; output} as t) ~f ~pointX ~pointY ~op_name =
+    let has_input = ST.mem input ~p:pointX in
+    let has_output = ST.mem output ~p:pointY in
     match (has_input, has_output) with
     | (true, true) -> begin
         (* if input is DIRTY with respect to our output
@@ -176,7 +176,7 @@ module IO_ (ST: STENCIL) = struct
         match ST.state input ~wrt:(ST.id output) with
         | CLEAN -> t
         | DIRTY ->
-          dirty_wrapper t ~f
+          _dirty_wrapper t ~f
         | NOT_INITIALISED ->
           failwith @@ Printf.sprintf "Not initialised - '%s' cannot continue" op_name
       end

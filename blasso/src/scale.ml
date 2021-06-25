@@ -61,7 +61,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       ST.write dirty_output ~p:point ~value:new_scaled_value
     in
     let op_name = _OP_NAME in
-    let io = t.io |> IO.update_with ~f ~point ~op_name in
+    let io = t.io |> IO.update_with ~f ~pointX:point ~pointY:point ~op_name in
     {t with io}
 
 end

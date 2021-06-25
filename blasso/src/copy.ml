@@ -58,14 +58,18 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     {t with io}
 
   let update t point =
-    let f = fun dirty_output ->
-      let value = ST.read t.io.input ~p:point in
-      (* NOTE f is invoked after checking points exist in stencil *)
+    if Hashtbl.mem t.point_map point then
       let p = Hashtbl.find t.point_map point in
-      ST.write dirty_output ~p ~value
-    in
-    let op_name = _OP_NAME in
-    let io = t.io |> IO.update_with ~f ~point ~op_name in
-    {t with io}
+      let f = fun dirty_output ->
+        let value = ST.read t.io.input ~p:point in
+        (* NOTE f is invoked after checking points exist in stencil *)
+        (* TODO could be done better - want to keep the point_map access
+         * close to where we check the stencils *)
+        ST.write dirty_output ~p ~value
+      in
+      let op_name = _OP_NAME in
+      let io = t.io |> IO.update_with ~f ~pointX:point ~pointY:p ~op_name in
+      {t with io}
+    else t
 
 end
