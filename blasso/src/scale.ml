@@ -46,7 +46,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
       t.io.input |> ST.iter ~f:scale_by_alpha
     in
-    let io = IO.full_calc t.io ~f in
+    let io = t.io |> IO.full_calc_with ~f in
     {t with io}
 
   let update t point =
@@ -56,7 +56,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       let new_scaled_value = alpha *. value in
       ST.write dirty_output ~p:point ~value:new_scaled_value
     in
-    let io = IO.update t.io ~f ~point ~op_name:_OP_NAME in
+    let op_name = _OP_NAME in
+    let io = t.io |> IO.update_with ~f ~point ~op_name in
     {t with io}
 
 end

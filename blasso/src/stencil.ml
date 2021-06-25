@@ -156,13 +156,13 @@ module IO_ (ST: STENCIL) = struct
     let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
     {input=clean_input; output=dirty_output}
 
-  let full_calc ({input; output} as t) ~f =
+  let full_calc_with ({input; output} as t) ~f =
     match ST.state input ~wrt:(ST.id output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
       dirty_wrapper t ~f
 
-  let update ({input; output} as t) ~f ~point ~op_name =
+  let update_with ({input; output} as t) ~f ~point ~op_name =
     let has_input = ST.mem input ~p:point in
     let has_output = ST.mem output ~p:point in
     match (has_input, has_output) with
