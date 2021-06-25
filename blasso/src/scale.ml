@@ -41,44 +41,22 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     {io; alpha}
 
   let full_calc t =
-    match ST.state t.io.input ~wrt:(ST.id t.io.output) with
-    | CLEAN-> t
-    | DIRTY | NOT_INITIALISED ->
-      let io = IO.dirty_wrapper t.io ~f:(
-          fun dirty_output ->
-            let alpha = ST.read_first t.alpha in
-            let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
-            t.io.input |> ST.iter ~f:scale_by_alpha
-        ) in
-      {t with io}
+    let f = fun dirty_output ->
+      let alpha = ST.read_first t.alpha in
+      let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
+      t.io.input |> ST.iter ~f:scale_by_alpha
+    in
+    let io = IO.full_calc t.io ~f in
+    {t with io}
 
   let update t point =
-    let has_input = ST.mem t.io.input ~p:point in
-    let has_output = ST.mem t.io.output ~p:point in
-    match (has_input, has_output) with
-    | (true, true) -> begin
-        (* if input is DIRTY with respect to our output
-         * then we need to update output and mark whole output as DIRTY
-         * and also set input with respect to this output as clean
-         * *)
-        match ST.state t.io.input ~wrt:(ST.id t.io.output) with
-        | CLEAN -> t
-        | DIRTY ->
-          let io = IO.dirty_wrapper t.io ~f:(
-              fun dirty_output ->
-                let value = ST.read t.io.input ~p:point in
-                let alpha = ST.read_first t.alpha in
-                let new_scaled_value = alpha *. value in
-                ST.write dirty_output ~p:point ~value:new_scaled_value
-            ) in
-          {t with io}
-        | NOT_INITIALISED ->
-          failwith @@ Printf.sprintf "Not initialised - '%s' cannot continue" _OP_NAME
-      end
-
-    (* not taking part in this update*)
-    | _ -> t
-    (* let io = {t.io with input=ST.mark_clean t.io.input ~wrt:(ST.id t.io.output)} in
-     * {t with io} *)
+    let f = fun dirty_output ->
+      let value = ST.read t.io.input ~p:point in
+      let alpha = ST.read_first t.alpha in
+      let new_scaled_value = alpha *. value in
+      ST.write dirty_output ~p:point ~value:new_scaled_value
+    in
+    let io = IO.update t.io ~f ~point ~op_name:_OP_NAME in
+    {t with io}
 
 end
