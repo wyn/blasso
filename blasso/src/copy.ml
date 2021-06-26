@@ -14,25 +14,27 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   }
 
   let _OP_NAME: Stencil.stencil_id = "COPY"
-  let _VAR_X: Stencil.op_arg = {op=_OP_NAME; arg="X"}
-  let _VAR_Y: Stencil.op_arg = {op=_OP_NAME; arg="Y"}
+  let _VAR_X this : Stencil.op_arg = {op=this; arg="X"}
+  let _VAR_Y this : Stencil.op_arg = {op=this; arg="Y"}
 
-  let make ~context ~names =
-    let x_id = Hashtbl.find names _VAR_X in
+  let make ~context ~names ~this =
+    let var_x = _VAR_X this in
+    let x_id = Hashtbl.find names var_x in
     let x = Hashtbl.find context x_id in
     let _ = if ST.is_empty x then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          _VAR_X.arg _VAR_X.op
+          var_x.arg _OP_NAME
       else ()
     in
 
-    let y_id = Hashtbl.find names _VAR_Y in
+    let var_y = _VAR_Y this in
+    let y_id = Hashtbl.find names var_y in
     let y = Hashtbl.find context y_id in
     let _ = if ST.is_empty y then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          _VAR_Y.arg _VAR_Y.op
+          var_y.arg _OP_NAME
       else ()
     in
 

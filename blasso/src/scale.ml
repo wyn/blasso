@@ -14,31 +14,33 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   }
 
   let _OP_NAME: Stencil.stencil_id = "SCALE"
-  let _VAR_X: Stencil.op_arg = {op=_OP_NAME; arg="X"}
-  let _VAR_ALPHA: Stencil.op_arg = {op=_OP_NAME; arg="ALPHA"}
+  let _VAR_X this : Stencil.op_arg = {op=this; arg="X"}
+  let _VAR_ALPHA this : Stencil.op_arg = {op=this; arg="ALPHA"}
 
-  let make ~context ~names =
-    let x_id = Hashtbl.find names _VAR_X in
+  let make ~context ~names ~this =
+    let var_x = _VAR_X this in
+    let x_id = Hashtbl.find names var_x in
     let x = Hashtbl.find context x_id in
     let _ = if ST.is_empty x then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          _VAR_X.arg _VAR_X.op
+          var_x.arg _OP_NAME
       else ()
     in
 
-    let alpha_id = Hashtbl.find names _VAR_ALPHA in
+    let var_alpha = _VAR_ALPHA this in
+    let alpha_id = Hashtbl.find names var_alpha in
     let alpha = Hashtbl.find context alpha_id in
     let _ = if ST.is_empty alpha then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          _VAR_ALPHA.arg _VAR_ALPHA.op
+          var_alpha.arg _OP_NAME
       else ()
     in
     let _ = if not @@ ST.is_scalar alpha then
         failwith @@ Printf.sprintf
           "Expected scalar stencil for variable '%s' in operation '%s'"
-          _VAR_ALPHA.arg _VAR_ALPHA.op
+          var_alpha.arg _OP_NAME
       else ()
     in
 

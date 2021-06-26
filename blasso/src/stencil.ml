@@ -137,7 +137,18 @@ module type BLAS_OP = sig
 
   type t
 
-  val make : context:stencil context -> names:names -> t
+  (* context is the argument variable name -> stencil map,
+   * names is the canonical argument name to argument name map,
+   * this is some sort of id for the operation at that point in the stack
+   * e.g.
+   * let alpha = 0.2
+   * let st0 = ...
+   * let res = Scale X=st0 alpha=alpha
+   * context is { 'st0':st0 stencil, 'alpha':alpha stencil}
+   * names is { 'X':'st0', 'alpha':'alpha' }
+   * this is 'res'
+   *  *)
+  val make : context:stencil context -> names:names -> this:string -> t
 
   val full_calc : t -> t
 
