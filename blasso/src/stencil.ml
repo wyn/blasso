@@ -127,8 +127,8 @@ end
 
 
 type 'stencil context = (stencil_id, 'stencil) Hashtbl.t
-type op_arg = {op: string; arg: string;}
-type names = (op_arg, stencil_id) Hashtbl.t
+type arg = {this: string; arg_name: string;}
+type names = (arg, stencil_id) Hashtbl.t
 type point_map = (Point.t, Point.t) Hashtbl.t
 
 module type BLAS_OP = sig
@@ -137,15 +137,15 @@ module type BLAS_OP = sig
 
   type t
 
-  (* context is the argument variable name -> stencil map,
-   * names is the canonical argument name to argument name map,
+  (* context is the stencil ID -> stencil map,
+   * names is the canonical argument name to stencil ID map,
    * this is some sort of id for the operation at that point in the stack
    * e.g.
    * let alpha = 0.2
    * let st0 = ...
    * let res = Scale X=st0 alpha=alpha
-   * context is { 'st0':st0 stencil, 'alpha':alpha stencil}
-   * names is { 'X':'st0', 'alpha':'alpha' }
+   * context is { 'id of st0':st0 stencil, 'id of alpha':alpha stencil}
+   * names is { {'res', 'X'}:'id of st0', {'res', 'alpha'}:'id of alpha' }
    * this is 'res'
    *  *)
   val make : context:stencil context -> names:names -> this:string -> t

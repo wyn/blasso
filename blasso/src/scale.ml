@@ -14,8 +14,8 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   }
 
   let _OP_NAME: Stencil.stencil_id = "SCALE"
-  let _VAR_X this : Stencil.op_arg = {op=this; arg="X"}
-  let _VAR_ALPHA this : Stencil.op_arg = {op=this; arg="ALPHA"}
+  let _VAR_X this : Stencil.arg = {this; arg_name="X"}
+  let _VAR_ALPHA this : Stencil.arg = {this; arg_name="ALPHA"}
 
   let make ~context ~names ~this =
     let var_x = _VAR_X this in
@@ -24,7 +24,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     let _ = if ST.is_empty x then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          var_x.arg _OP_NAME
+          var_x.arg_name _OP_NAME
       else ()
     in
 
@@ -34,13 +34,13 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     let _ = if ST.is_empty alpha then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
-          var_alpha.arg _OP_NAME
+          var_alpha.arg_name _OP_NAME
       else ()
     in
     let _ = if not @@ ST.is_scalar alpha then
         failwith @@ Printf.sprintf
           "Expected scalar stencil for variable '%s' in operation '%s'"
-          var_alpha.arg _OP_NAME
+          var_alpha.arg_name _OP_NAME
       else ()
     in
 
