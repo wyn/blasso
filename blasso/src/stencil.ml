@@ -50,6 +50,7 @@ module Point = struct
 
 end
 
+type stencil_id = string
 
 module type STENCIL = sig
 
@@ -94,18 +95,18 @@ module type STENCIL = sig
    *
    *  *)
   (* NOTE not sure we need parent and data ids *)
-  val id : t -> int
-  val parent_id : t -> int
-  val data_id : t -> int
+  val id : t -> stencil_id
+  val parent_id : t -> stencil_id
+  val data_id : t -> stencil_id
 
   val rows: t -> int
   val cols: t -> int
   val elements: t -> int
   (* what is my state with respect to an output *)
-  val state : t -> wrt:int -> state
+  val state : t -> wrt:stencil_id -> state
   val mark_dirty : t -> t
   (* mark me clean with respect to an output *)
-  val mark_clean : t -> wrt:int -> t
+  val mark_clean : t -> wrt:stencil_id -> t
 
   (* these getters return stencils that allow one to get at a value *)
   val slice : t -> ?from:Point.t -> ?nrows:int -> ?ncols:int -> t
@@ -125,7 +126,6 @@ module type STENCIL = sig
 end
 
 
-type stencil_id = string
 type 'stencil context = (stencil_id, 'stencil) Hashtbl.t
 type op_arg = {op: string; arg: string;}
 type names = (op_arg, stencil_id) Hashtbl.t
@@ -151,11 +151,14 @@ module IO_ (ST: STENCIL) = struct
     input: ST.t;
     output: ST.t;
     point_map: point_map;
+    op_name: string;
   }
 
   let make ~input ~output ~op_name =
     let _ = if not @@ ST.is_compatible input output then
-        failwith @@ Printf.sprintf "Incompatible stencils '%d' and '%d in operation '%s'" (ST.id input) (ST.id output) op_name
+        failwith @@ Printf.sprintf
+          "Incompatible stencils '%s' and '%s in operation '%s'"
+          (ST.id input) (ST.id output) op_name
       else ()
     in
     let n = ST.elements input in
@@ -164,7 +167,7 @@ module IO_ (ST: STENCIL) = struct
       Hashtbl.add point_map px py
     in
     let () = input |> ST.iter_zip output ~f in
-    {input; output; point_map}
+    {input; output; point_map; op_name}
 
 
   let _dirty_wrapper ({input; output; _} as t) ~f =
@@ -182,7 +185,7 @@ module IO_ (ST: STENCIL) = struct
       let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
       {t with input=clean_input; output=dirty_output}
 
-  let update_with ({input; output; point_map} as t) ~f ~pointX ~op_name =
+  let update_with ({input; output; point_map; op_name} as t) ~f ~pointX =
     let has_input = ST.mem input ~p:pointX in
     let pY = Hashtbl.find_opt point_map pointX in
     let has_output = pY
@@ -202,7 +205,8 @@ module IO_ (ST: STENCIL) = struct
           let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
           {t with input=clean_input; output=dirty_output}
         | NOT_INITIALISED ->
-          failwith @@ Printf.sprintf "Not initialised - '%s' cannot continue" op_name
+          failwith @@ Printf.sprintf
+            "Not initialised - '%s' cannot continue" op_name
       end
 
     (* not taking part in this update *)

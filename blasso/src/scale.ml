@@ -21,18 +21,24 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     let x_id = Hashtbl.find names _VAR_X in
     let x = Hashtbl.find context x_id in
     let _ = if ST.is_empty x then
-        failwith @@ Printf.sprintf "Empty stencil found for variable '%s' in operation '%s'" _VAR_X.arg _VAR_X.op
+        failwith @@ Printf.sprintf
+          "Empty stencil found for variable '%s' in operation '%s'"
+          _VAR_X.arg _VAR_X.op
       else ()
     in
 
     let alpha_id = Hashtbl.find names _VAR_ALPHA in
     let alpha = Hashtbl.find context alpha_id in
     let _ = if ST.is_empty alpha then
-        failwith @@ Printf.sprintf "Empty stencil found for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+        failwith @@ Printf.sprintf
+          "Empty stencil found for variable '%s' in operation '%s'"
+          _VAR_ALPHA.arg _VAR_ALPHA.op
       else ()
     in
     let _ = if not @@ ST.is_scalar alpha then
-        failwith @@ Printf.sprintf "Expected scalar stencil for variable '%s' in operation '%s'" _VAR_ALPHA.arg _VAR_ALPHA.op
+        failwith @@ Printf.sprintf
+          "Expected scalar stencil for variable '%s' in operation '%s'"
+          _VAR_ALPHA.arg _VAR_ALPHA.op
       else ()
     in
 
@@ -41,7 +47,6 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     {io; alpha}
 
   let _scale_by_alpha ~alpha input output pointX pointY =
-    (* know that input and output are both x so read/write to same point p *)
     let x = ST.read input ~p:pointX in
     ST.write output ~p:pointY ~value:(alpha *. x)
 
@@ -49,7 +54,6 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     (* know that alpha is a scalar so read_first *)
     let alpha = ST.read_first t.alpha in
     let f = fun input output ->
-      (* know that input and output are both x so read/write to same point p *)
       let scale_by_alpha = _scale_by_alpha ~alpha input output in
       input |> ST.iter_zip output ~f:scale_by_alpha
     in
@@ -60,8 +64,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     (* know that alpha is a scalar so read_first *)
     let alpha = ST.read_first t.alpha in
     let f = _scale_by_alpha ~alpha in
-    let op_name = _OP_NAME in
-    let io = t.io |> IO.update_with ~f ~pointX:point ~op_name in
+    let io = t.io |> IO.update_with ~f ~pointX:point in
     {t with io}
 
 end
