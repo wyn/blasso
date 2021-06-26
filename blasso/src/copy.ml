@@ -11,7 +11,6 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
 
   type t = {
     io: IO.t;
-    point_map: Stencil.point_map;
   }
 
   let _OP_NAME: Stencil.stencil_id = "COPY"
@@ -33,45 +32,24 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
       else ()
     in
 
-    let _ = if not @@ ST.is_compatible x y then
-        failwith @@ Printf.sprintf "Incompatible stencils '%s' and '%s in operation '%s'" _VAR_X.arg _VAR_Y.arg _OP_NAME
-      else ()
-    in
-    let n = ST.elements x in
-    let point_map = Hashtbl.create n in
-    let f = fun _ px py ->
-      Hashtbl.add point_map px py
-    in
-    let io: IO.t = {input=x; output=y} in
-    let () = io.input |> ST.iter_zip io.output ~f in
-    {io; point_map}
+    let io = IO.make ~input:x ~output:y ~op_name:_OP_NAME in
+    {io; }
+
+  let _copy_x_to_y input output pointX pointY =
+    let value = ST.read input ~p:pointX in
+    ST.write output ~p:pointY ~value
 
   let full_calc t =
-    let f = fun dirty_output ->
-      let copy_x_to_y = fun x _ py ->
-        dirty_output |> ST.write ~p:py ~value:x
-      in
-      t.io.input |> ST.iter_zip dirty_output ~f:copy_x_to_y
+    let f = fun input output ->
+      input |> ST.iter_zip output ~f:(_copy_x_to_y input output)
     in
 
     let io = t.io |> IO.full_calc_with ~f in
-    {t with io}
+    {io; }
 
   let update t point =
-    if not @@ Hashtbl.mem t.point_map point then
-      t
-    else
-      (* NOTE f is invoked after checking points exist in stencil
-       *  but we also check here that we have points in the point_map *)
-      (* TODO could be done better - want to keep the point_map access
-       * close to where we check the stencils *)
-      let p = Hashtbl.find t.point_map point in
-      let f = fun dirty_output ->
-        let value = ST.read t.io.input ~p:point in
-        ST.write dirty_output ~p ~value
-      in
-      let op_name = _OP_NAME in
-      let io = t.io |> IO.update_with ~f ~pointX:point ~pointY:p ~op_name in
-      {t with io}
+    let op_name = _OP_NAME in
+    let io = t.io |> IO.update_with ~f:_copy_x_to_y ~pointX:point ~op_name in
+    {io; }
 
 end

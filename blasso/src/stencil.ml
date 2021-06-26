@@ -119,8 +119,8 @@ module type STENCIL = sig
   val is_row : t -> bool
   val is_col : t -> bool
 
-  val iter : t -> f:('a -> Point.t -> unit) -> unit
-  val iter_zip : t -> t -> f:('a -> Point.t -> Point.t -> unit) -> unit
+  val iter : t -> f:(Point.t -> unit) -> unit
+  val iter_zip : t -> t -> f:(Point.t -> Point.t -> unit) -> unit
 
 end
 
@@ -150,25 +150,46 @@ module IO_ (ST: STENCIL) = struct
   type t = {
     input: ST.t;
     output: ST.t;
+    point_map: point_map;
   }
 
-  let _dirty_wrapper {input; output} ~f =
+  let make ~input ~output ~op_name =
+    let _ = if not @@ ST.is_compatible input output then
+        failwith @@ Printf.sprintf "Incompatible stencils '%d' and '%d in operation '%s'" (ST.id input) (ST.id output) op_name
+      else ()
+    in
+    let n = ST.elements input in
+    let point_map = Hashtbl.create n in
+    let f = fun px py ->
+      Hashtbl.add point_map px py
+    in
+    let () = input |> ST.iter_zip output ~f in
+    {input; output; point_map}
+
+
+  let _dirty_wrapper ({input; output; _} as t) ~f =
     let dirty_output = ST.mark_dirty output in
     let () = f dirty_output in
     let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
-    {input=clean_input; output=dirty_output}
+    {t with input=clean_input; output=dirty_output}
 
-  let full_calc_with ({input; output} as t) ~f =
+  let full_calc_with ({input; output; _} as t) ~f =
     match ST.state input ~wrt:(ST.id output) with
     | CLEAN-> t
     | DIRTY | NOT_INITIALISED ->
-      _dirty_wrapper t ~f
+      let dirty_output = ST.mark_dirty output in
+      let () = f input dirty_output in
+      let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
+      {t with input=clean_input; output=dirty_output}
 
-  let update_with ({input; output} as t) ~f ~pointX ~pointY ~op_name =
+  let update_with ({input; output; point_map} as t) ~f ~pointX ~op_name =
     let has_input = ST.mem input ~p:pointX in
-    let has_output = ST.mem output ~p:pointY in
-    match (has_input, has_output) with
-    | (true, true) -> begin
+    let pY = Hashtbl.find_opt point_map pointX in
+    let has_output = pY
+                     |> Option.map (fun p -> ST.mem output ~p)
+                     |> Option.value ~default:false in
+    match (has_input, has_output, pY) with
+    | (true, true, Some pointY) -> begin
         (* if input is DIRTY with respect to our output
          * then we need to update output and mark whole output as DIRTY
          * and also set input with respect to this output as clean
@@ -176,12 +197,15 @@ module IO_ (ST: STENCIL) = struct
         match ST.state input ~wrt:(ST.id output) with
         | CLEAN -> t
         | DIRTY ->
-          _dirty_wrapper t ~f
+          let dirty_output = ST.mark_dirty output in
+          let () = f input dirty_output pointX pointY in
+          let clean_input = ST.mark_clean input ~wrt:(ST.id dirty_output) in
+          {t with input=clean_input; output=dirty_output}
         | NOT_INITIALISED ->
           failwith @@ Printf.sprintf "Not initialised - '%s' cannot continue" op_name
       end
 
-    (* not taking part in this update*)
+    (* not taking part in this update *)
     | _ -> t
 
 end
