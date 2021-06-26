@@ -37,31 +37,31 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     in
 
     (* NOTE input and output are both x stencil *)
-    let io: IO.t = {input=x; output=x} in
+    let io = IO.make ~input:x ~output:x ~op_name:_OP_NAME in
     {io; alpha}
 
+  let _scale_by_alpha ~alpha input output pointX pointY =
+    (* know that input and output are both x so read/write to same point p *)
+    let x = ST.read input ~p:pointX in
+    ST.write output ~p:pointY ~value:(alpha *. x)
+
   let full_calc t =
-    let f = fun dirty_output ->
-      (* know that alpha is a scalar so read_first *)
-      let alpha = ST.read_first t.alpha in
+    (* know that alpha is a scalar so read_first *)
+    let alpha = ST.read_first t.alpha in
+    let f = fun input output ->
       (* know that input and output are both x so read/write to same point p *)
-      let scale_by_alpha = fun x p -> dirty_output |> ST.write ~p ~value:(alpha  *. x) in
-      t.io.input |> ST.iter ~f:scale_by_alpha
+      let scale_by_alpha = _scale_by_alpha ~alpha input output in
+      input |> ST.iter_zip output ~f:scale_by_alpha
     in
     let io = t.io |> IO.full_calc_with ~f in
     {t with io}
 
   let update t point =
-    let f = fun dirty_output ->
-      (* know that alpha is a scalar so read_first *)
-      let alpha = ST.read_first t.alpha in
-      (* know that input and output are both x so read/write to same point p *)
-      let value = ST.read t.io.input ~p:point in
-      let new_scaled_value = alpha *. value in
-      ST.write dirty_output ~p:point ~value:new_scaled_value
-    in
+    (* know that alpha is a scalar so read_first *)
+    let alpha = ST.read_first t.alpha in
+    let f = _scale_by_alpha ~alpha in
     let op_name = _OP_NAME in
-    let io = t.io |> IO.update_with ~f ~pointX:point ~pointY:point ~op_name in
+    let io = t.io |> IO.update_with ~f ~pointX:point ~op_name in
     {t with io}
 
 end

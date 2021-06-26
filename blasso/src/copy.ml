@@ -43,7 +43,6 @@ module Copy (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     let f = fun input output ->
       input |> ST.iter_zip output ~f:(_copy_x_to_y input output)
     in
-
     let io = t.io |> IO.full_calc_with ~f in
     {io; }
 
