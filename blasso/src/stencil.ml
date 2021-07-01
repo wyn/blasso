@@ -64,6 +64,7 @@ module type STENCIL = sig
   val make : data:(float array array) -> orientation:axis -> t
   val make_row : data:(float array) -> t
   val make_col : data:(float array) -> t
+  val make_scalar : data:float -> t
 
   val reset_data : t -> data:(float array array) -> t
   val read : t -> p:Point.t -> float
@@ -96,6 +97,7 @@ module type STENCIL = sig
    *  *)
   (* NOTE not sure we need parent and data ids *)
   val id : t -> stencil_id
+  val children_ids : t -> stencil_id list
   val parent_id : t -> stencil_id
   val data_id : t -> stencil_id
 
@@ -126,9 +128,8 @@ module type STENCIL = sig
 end
 
 
-type 'stencil context = (stencil_id, 'stencil) Hashtbl.t
-type arg = {this: string; arg_name: string;}
-type names = (arg, stencil_id) Hashtbl.t
+type arg = {this: stencil_id; arg_name: string;}
+type 'stencil context = (arg, 'stencil) Hashtbl.t
 type point_map = (Point.t, Point.t) Hashtbl.t
 
 module type BLAS_OP = sig
@@ -138,17 +139,17 @@ module type BLAS_OP = sig
   type t
 
   (* context is the stencil ID -> stencil map,
-   * names is the canonical argument name to stencil ID map,
    * this is some sort of id for the operation at that point in the stack
    * e.g.
-   * let alpha = 0.2
+   * let alpha = ST.make_scalar 0.2
    * let st0 = ...
    * let res = Scale X=st0 alpha=alpha
-   * context is { 'id of st0':st0 stencil, 'id of alpha':alpha stencil}
-   * names is { {'res', 'X'}:'id of st0', {'res', 'alpha'}:'id of alpha' }
-   * this is 'res'
+   *
+   * ```context``` is { {res.id, 'X'}:st0 stencil; {res.id, 'alpha'}:alpha stencil; ... }
+   * ```this``` is res.id
+   *
    *  *)
-  val make : context:stencil context -> names:names -> this:string -> t
+  val make : context:stencil context -> this:stencil_id -> t
 
   val full_calc : t -> t
 

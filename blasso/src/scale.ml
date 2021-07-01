@@ -17,10 +17,9 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
   let _VAR_X this : Stencil.arg = {this; arg_name="X"}
   let _VAR_ALPHA this : Stencil.arg = {this; arg_name="ALPHA"}
 
-  let make ~context ~names ~this =
+  let make ~context ~this =
     let var_x = _VAR_X this in
-    let x_id = Hashtbl.find names var_x in
-    let x = Hashtbl.find context x_id in
+    let x = Hashtbl.find context var_x in
     let _ = if ST.is_empty x then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
@@ -29,8 +28,7 @@ module Scale (ST: STENCIL): (BLAS_OP with type stencil := ST.t) = struct
     in
 
     let var_alpha = _VAR_ALPHA this in
-    let alpha_id = Hashtbl.find names var_alpha in
-    let alpha = Hashtbl.find context alpha_id in
+    let alpha = Hashtbl.find context var_alpha in
     let _ = if ST.is_empty alpha then
         failwith @@ Printf.sprintf
           "Empty stencil found for variable '%s' in operation '%s'"
